@@ -1,0 +1,10 @@
+{
+    "autoload": {
+        "psr-4": {
+            "MyApp\\": "src/"
+        }
+    },
+    "require": {
+        "phpoffice/phpspreadsheet": "^1.29.0"
+    }
+}

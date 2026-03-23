@@ -1,0 +1,12 @@
+Unknown column 'duan_ma' in 'where clause'[2025-06-29 05:30:50] Unknown column 'duan_ma' in 'where clause'
+Dự án: 202506294101 | Mẫu: 73
+File: C:\xampp\htdocs\quanlycongviec\capquanly\ajax\remove_duan_maucv.php | Line: 42
+
+[2025-06-29 05:30:57] Unknown column 'duan_ma' in 'where clause'
+Dự án: 202506294101 | Mẫu: 73
+File: C:\xampp\htdocs\quanlycongviec\capquanly\ajax\remove_duan_maucv.php | Line: 42
+
+[2025-06-29 05:32:49] Unknown column 'duan_ma' in 'where clause'
+Dự án: 202506294101 | Mẫu: 73
+File: C:\xampp\htdocs\quanlycongviec\capquanly\ajax\remove_duan_maucv.php | Line: 42
+

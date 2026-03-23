@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="8240a15c-1efc-4d64-a901-5d51438408d7" name="Changes" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings" synchronizationState="SYNCHRONIZE">
+    <pharConfigPath>$PROJECT_DIR$/composer.json</pharConfigPath>
+    <execution />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="PhpWorkspaceProjectConfiguration" interpreter_name="C:\xampp\php\php.exe">
+    <include_path>
+      <path value="$PROJECT_DIR$/vendor/myclabs/php-enum" />
+      <path value="$PROJECT_DIR$/vendor/ezyang/htmlpurifier" />
+      <path value="$PROJECT_DIR$/vendor/symfony/polyfill-mbstring" />
+      <path value="$PROJECT_DIR$/vendor/psr/http-factory" />
+      <path value="$PROJECT_DIR$/vendor/psr/http-client" />
+      <path value="$PROJECT_DIR$/vendor/psr/simple-cache" />
+      <path value="$PROJECT_DIR$/vendor/psr/http-message" />
+      <path value="$PROJECT_DIR$/vendor/composer" />
+      <path value="$PROJECT_DIR$/vendor/markbaker/matrix" />
+      <path value="$PROJECT_DIR$/vendor/markbaker/complex" />
+      <path value="$PROJECT_DIR$/vendor/phpoffice/phpspreadsheet" />
+      <path value="$PROJECT_DIR$/vendor/maennchen/zipstream-php" />
+    </include_path>
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="2hRGkWbJvbAXnF53olZW3FD9R14" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "WebServerToolWindowFactoryState": "false",
+    "last_opened_file_path": "C:/xampp/htdocs/quanlyduan",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="8240a15c-1efc-4d64-a901-5d51438408d7" name="Changes" comment="" />
+      <created>1717507287492</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1717507287492</updated>
+      <workItem from="1717507288562" duration="12716000" />
+      <workItem from="1717549645255" duration="156000" />
+      <workItem from="1717553668039" duration="3681000" />
+      <workItem from="1717558763402" duration="5926000" />
+      <workItem from="1717589444836" duration="19434000" />
+      <workItem from="1717635325352" duration="25242000" />
+      <workItem from="1717669646126" duration="5082000" />
+      <workItem from="1717722660844" duration="459000" />
+      <workItem from="1717730203320" duration="2235000" />
+      <workItem from="1717762559464" duration="22522000" />
+      <workItem from="1717937571124" duration="486000" />
+      <workItem from="1717981864696" duration="55000" />
+      <workItem from="1718196357831" duration="2079000" />
+      <workItem from="1718240743831" duration="21000" />
+      <workItem from="1718282520273" duration="26000" />
+      <workItem from="1718326391953" duration="1267000" />
+      <workItem from="1718328130892" duration="3285000" />
+      <workItem from="1718334768792" duration="1819000" />
+      <workItem from="1718366952914" duration="6477000" />
+      <workItem from="1718470995985" duration="13963000" />
+      <workItem from="1718587144583" duration="45000" />
+      <workItem from="1718606878466" duration="7794000" />
+      <workItem from="1718678165306" duration="2190000" />
+      <workItem from="1718768989948" duration="2447000" />
+      <workItem from="1718778274080" duration="1174000" />
+      <workItem from="1719025652750" duration="3465000" />
+      <workItem from="1719042074567" duration="16383000" />
+      <workItem from="1719151062211" duration="3814000" />
+      <workItem from="1719155522307" duration="543000" />
+      <workItem from="1719156147309" duration="1266000" />
+      <workItem from="1719191218649" duration="350000" />
+      <workItem from="1719279386401" duration="3553000" />
+      <workItem from="1719284520573" duration="8967000" />
+      <workItem from="1719313722838" duration="6591000" />
+      <workItem from="1719323761341" duration="594000" />
+      <workItem from="1719332360826" duration="1943000" />
+      <workItem from="1719363632138" duration="90000" />
+      <workItem from="1719369359972" duration="7410000" />
+      <workItem from="1719398077909" duration="6283000" />
+      <workItem from="1719411074046" duration="176000" />
+      <workItem from="1719752004393" duration="6532000" />
+      <workItem from="1719796045711" duration="4796000" />
+      <workItem from="1720075362089" duration="559000" />
+      <workItem from="1720079161928" duration="869000" />
+      <workItem from="1720168610429" duration="4539000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/capquanly/css/app.js</url>
+          <line>36</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/capquanly/css/app.js</url>
+          <line>138</line>
+          <option name="timeStamp" value="3" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

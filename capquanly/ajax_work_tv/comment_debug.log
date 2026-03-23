@@ -1,0 +1,25 @@
+Array
+(
+    [time] => 2025-08-26 04:49:47
+    [post] => Array
+        (
+            [task_id] => CV20250712915707002
+            [comment] => ADSD
+        )
+
+    [session] => Array
+        (
+            [username] => Nguyễn Thọ Tùng
+            [code] => 00255
+            [active] => 0
+            [nnd_ma] => 3
+        )
+
+    [session_id] => imgdgaca0vq1c8uc0q9a2kcjer
+    [cookies] => Array
+        (
+            [PHPSESSID] => imgdgaca0vq1c8uc0q9a2kcjer
+        )
+
+)
+

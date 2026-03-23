@@ -1,0 +1,608 @@
+
+/* bắt đầu cho menu responsive desktop 769px */
+@media (min-width: 769px) {
+  #filterPanel {
+    display: block !important;
+    position: static !important;
+    min-width: unset !important;
+    max-width: unset !important;
+    background: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+  }
+  #filterOverlay, #closeFilterPanel {
+    display: none !important;
+  }
+} 
+/* kết thúc cho menu responsive desktop 769px */
+
+/* CSS cơ bản cho status filter container */
+.status-filter-container {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.status-date-input,
+.status-select-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.status-filter-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* CSS riêng cho biểu đồ 1 - statusFilterPanel */
+#statusFilterPanel .status-filter-container {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+#statusFilterPanel .status-date-input {
+  flex: 1;
+  min-width: 0;
+}
+
+#statusFilterPanel .status-filter-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-height: 38px;
+  font-weight: 500;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+#statusFilterPanel .status-filter-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#btnThemMauCV {
+  padding-right: 20px !important;
+  padding-left: 20px !important;
+}
+
+/* Đảm bảo Grid hoạt động tốt trên các trình duyệt */
+@supports (display: grid) {
+  #statusFilterPanel .status-filter-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto auto;
+    gap: 0.5rem;
+    align-items: end;
+  }
+
+  /* Xử lý filter panel cho biểu đồ trạng thái 1 - CHỈ BIỂU ĐỒ 1 */
+  #statusFilterPanel .status-filter-container {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr auto auto !important;
+    gap: 4px !important;
+    width: 100% !important;
+    align-items: end !important;
+  }
+  
+  #statusFilterPanel .status-date-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    font-size: 10px !important;
+    padding: 0.25rem 0.25rem !important;
+  }
+  
+  #statusFilterPanel .status-filter-btn {
+    width: auto !important;
+    font-size: 12px !important;
+    padding: 0.375rem 0.75rem !important;
+    white-space: nowrap !important;
+    min-height: 33.5px !important;
+    border-radius: 4px !important;
+  }
+  
+  #statusFilterPanel .status-filter-btn i {
+    font-size: 11px !important;
+  }
+  
+  /* Đảm bảo nút lọc có kích thước phù hợp */
+  #statusFilterPanel #applyStatusFilter {
+    min-width: 70px !important;
+    max-width: 80px !important;
+    font-weight: 500 !important;
+  }
+  
+  /* Đảm bảo nút reset có kích thước phù hợp */
+  #statusFilterPanel #resetStatusFilter {
+    min-width: 60px !important;
+    max-width: 70px !important;
+    font-weight: 500 !important;
+  }
+  
+  /* Đảm bảo card body có padding phù hợp */
+  #statusFilterPanel .card-body {
+    padding: 0.75rem !important;
+  }
+}
+/* kết thúc cho responsive màn hình nhỏ desktop 1024px */
+
+/* ======================================================================================================== */
+/* bắt đầu cho responsive màn hình tablet lớn 1200px */
+@media (max-width: 1200px) and (min-width: 1025px) {
+  #statusFilterPanel .status-filter-container {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr auto auto !important;
+    gap: 4px !important;
+    width: 100% !important;
+    align-items: end !important;
+  }
+  
+  #statusFilterPanel .status-date-input {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    font-size: 10px !important;
+    padding: 0.25rem 0.25rem !important;
+  }
+  
+  #statusFilterPanel #applyStatusFilter {
+    width: auto !important;
+    min-width: 50px !important;
+    max-width: 80px !important;
+    font-size: 11px !important;
+    padding: 0.375rem 0.75rem !important;
+    white-space: nowrap !important;
+    min-height: 33.5px !important;
+    font-weight: 500 !important;
+  }
+  
+  #statusFilterPanel #resetStatusFilter {
+    width: auto !important;
+    min-width: 50px !important;
+    max-width: 70px !important;
+    font-size: 11px !important;
+    padding: 0.375rem 0.75rem !important;
+    white-space: nowrap !important;
+    min-height: 33.5px !important;
+    font-weight: 500 !important;
+  }
+  
+  #statusFilterPanel .card-body {
+    padding: 0.75rem !important;
+  }
+  /* Xử lý filter panel cho biểu đồ trạng thái 1 - CHỈ BIỂU ĐỒ 1 */
+  #statusFilterPanel .status-filter-container {
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+  
+  #statusFilterPanel .status-date-input {
+    min-width: 125px !important;
+    max-width: 140px !important;
+    font-size: 12px !important;
+  }
+  
+  #statusFilterPanel .status-filter-btn {
+    padding: 0.375rem 0.75rem !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    min-width: 70px !important;
+    min-height: 33.5px !important;
+    font-weight: 500 !important;
+    border-radius: 4px !important;
+  }
+  
+  /* Đảm bảo các elements không bị wrap cho biểu đồ 1 */
+  #statusFilterPanel .status-filter-container > * {
+    flex-shrink: 1 !important;
+  }
+  
+  #statusFilterPanel .status-filter-container .btn {
+    flex-shrink: 0 !important;
+  }
+  
+}
+/* kết thúc cho responsive màn hình tablet lớn 1200px */
+
+/* ======================================================================================================== */
+/* menu responsivetablet 768px */
+@media  (max-width: 768px) {
+/* bắt đầu cho menu responsive */
+
+    /* Đảm bảo nút hamburger luôn hiển thị */
+    #sidebarToggle {
+        display: block !important;
+        position: fixed !important;
+        top: 10px !important;
+        left: 10px !important;
+        z-index: 1050 !important;
+    }
+    /* Ghi đè hoàn toàn display của sidebar */
+    #sidebar,
+    body #sidebar {
+        display: none !important;
+    }
+    #sidebar.active,
+    body #sidebar.active {
+        display: block !important;
+    }
+    #sidebar,
+    #sidebar.active,
+    body #sidebar,
+    body #sidebar.active {
+        margin-left: 0 !important;
+        width: 50vw !important;
+    }
+    #sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        z-index: 1052;
+        background: #2c5ca4 !important;
+        color: #fff !important;
+        transition: all 0.3s;
+        box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+    }
+    /* Luôn ẩn nút đóng mặc định */
+    #sidebarClose {
+        display: none !important;
+    }
+    /* Tăng độ ưu tiên, luôn hiện nút đóng khi sidebar mở */
+    #sidebar.active #sidebarClose,
+    #sidebar.active > #sidebarClose,
+    nav#sidebar.active #sidebarClose,
+    nav#sidebar.active > #sidebarClose {
+        display: block !important;
+        z-index: 1060 !important;
+    }
+    #sidebarOverlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0,0,0,0.3);
+        z-index: 1050;
+    }
+    #sidebarOverlay.active {
+        display: block !important;
+    }
+    /* kết thúc cho menu responsive */
+  /* bắt đầu cho responsive bộ lọc biểu đồ cho trang index */
+     #statusFilterPanel .status-filter-container {
+          flex-wrap: wrap !important;
+          gap: 8px !important;
+        } 
+    /* kết thúc cho responsive bộ lọc biểu đồ cho trang index */
+    .d-flex.justify-content-between.align-items-center.mb-3 {
+      padding: 0 !important;
+      height: 39px !important;
+    }
+   /* bắt đầu cho responsive cho trang danhsachduan */
+   .sidebar, #sidebar {
+    width: 50vw !important;   
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+    left: 0 !important;        
+    right: auto !important;
+    border-radius: 0 !important; 
+    height: 100vh !important;  
+    min-height: 100vh !important;
+    max-height: 100vh !important;
+  }
+  #searchForm.d-flex {
+      flex-wrap: wrap !important;
+      gap: 8px !important;
+      justify-content: flex-start !important;
+    }
+    #filterPanel .mb-3 {
+      margin-bottom: 15px !important;
+    }
+    #searchForm input,
+    #searchForm button,
+    #searchForm .form-control,
+    #searchForm .btn {
+      width: 100% !important;
+      min-width: 0 !important;
+      max-width: 100% !important;
+      margin-bottom: 6px;
+      box-sizing: border-box;
+    }
+    #searchForm > div {
+      width: 100% !important;
+    }
+   /* kết thúc cho responsive cho trang danhsachduan */
+  #filterPanel {
+    display: none;
+    margin-bottom: 10px;
+  }
+  #filterPanel.show {
+    display: block !important;
+  }
+  #toggleFilterBtn {
+    display: block !important;
+  }
+  #filterOverlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.25);
+    z-index: 1100;
+    display: none;
+  }
+  #filterPanel {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    min-width: 90vw !important;
+    max-width: 95vw !important;
+    background: #fff !important;
+    z-index: 1101 !important;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.2) !important;
+    border-radius: 16px !important;
+    padding: 20px 12px 12px 12px !important;
+    display: none;
+    animation: fadeInScale 0.25s;
+  }
+  @keyframes fadeInScale {
+    from { opacity: 0; transform: translate(-50%, -60%) scale(0.95);}
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1);}
+  }
+  #closeFilterPanel {
+    position: absolute !important;
+    top: -16px !important;
+    right: -16px !important;
+    z-index: 1200 !important;
+    background: #fff !important;
+    border-radius: 50% !important;
+    width: 32px !important;
+    height: 32px !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    font-size: 22px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #eee;
+    padding: 0;
+  }
+  #filterPanel.d-block {
+    display: block !important;
+  }
+  .btn-group-mobile-center {
+    display: flex !important;
+    justify-content: center !important;
+    width: 100%;
+    gap: 8px;
+  }
+  .btn-group-mobile-center > * {
+    margin-bottom: 0 !important;
+  }
+  #filterPanel {
+    display: none !important;
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    min-width: 90vw !important;
+    max-width: 95vw !important;
+    background: #fff !important;
+    z-index: 2100 !important;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.2) !important;
+    border-radius: 16px !important;
+    padding: 20px 12px 12px 12px !important;
+    animation: fadeInScale 0.25s;
+  }
+  #filterPanel.show {
+    display: block !important;
+  }
+  #filterOverlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.25);
+    z-index: 2000;
+    display: none;
+  }
+  #filterOverlay.show {
+    display: block !important;
+  }
+  #closeFilterPanel {
+    display: flex !important;
+  }
+  #btnAddPrivateTask {
+    display: flex !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    justify-content: center !important;
+  }
+  .mr-3.ml-4 {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    width: 100%;
+  }
+  #content {
+    width: 100%;
+  }
+  .thempb-page #content,
+  .themdonvi-page #content {
+    padding-top: 60px;
+  }
+  .btn.btn-danger.btn-sm.rounded-pill.px-3.shadow-sm.d-flex.align-items-center,
+  #resetSearch{
+    justify-content: center !important;
+  }
+}
+/* kết thúc cho menu responsive tablet 768px */
+/* ======================================================================================================== */
+/* bắt đầu cho menu responsive mobile 430px */
+@media (max-width: 431px) {
+  /* CSS cho header danh sách dự án trên mobile */
+  
+  
+  /* CSS cho input search trong danh sách thành viên */
+  input[name="txtSearch"].form-control.input-sm.col-sm-4 {
+    margin-right: 5px !important;
+    margin-left: 40px !important;
+  }
+  
+  /* Ẩn nút Thêm mẫu và nút quản lý khi ở mobile */
+  #btnThemMauCV,
+  .btn-group-mobile-center {
+    display: none !important;
+  }
+  
+  /* Đảm bảo container cho phép nút lọc ở bên phải */
+  .d-flex.justify-content-between.align-items-center.mb-3 {
+    justify-content: flex-end !important;
+  }
+  
+  /* Ẩn toàn bộ phần biểu đồ tiến trình dự án khi ở mobile */
+  hr.border-primary, 
+  h3.text-center.mb-3,
+  .gantt-filter-card,
+  .gantt-scroll-container,
+  #gantt2Container,
+  #taskDetailContainer{ 
+    display: none !important;
+  }
+  
+  /* Căn giữa 2 nút xuất báo cáo khi ở mobile */
+  .align-items-center.mb-3 {
+    display: flex !important;
+    justify-content: center !important;
+    flex-direction: row !important;
+    gap: 10px !important;
+  }
+  #modalChonMau .modal-content {
+    width: 100vw !important;
+    margin-left: 55px !important;
+  }
+
+  #modalChiTietMau .modal-content {
+    margin-left: 104px !important;
+  }
+
+  #filterPanel form {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  #filterPanel form > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  
+
+
+  /* Xử lý filter panel cho biểu đồ trạng thái trên mobile */
+  #statusFilterPanel .status-filter-container {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  #statusFilterPanel .status-date-input,
+  #statusFilterPanel .status-filter-btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  #content {
+    width: 100%;
+  }
+  #sidebar, .sidebar {
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    z-index: 1052 !important;
+    background: #2c5ca4 !important;
+    color: #fff !important;
+    transition: all 0.3s;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+    margin: 0 !important;
+    padding: 0 !important;  
+  }
+  #sidebar.active, .sidebar.active {
+    display: block !important;
+  }
+  #sidebarToggle {
+    display: block !important;
+    position: fixed !important;
+    top: 10px !important;
+    left: 10px !important;
+  }
+  #sidebarClose {
+    display: none !important;
+    position: absolute !important;
+    top: 10px !important;
+    right: 10px !important;
+    z-index: 1060 !important;
+    background: none !important;
+    border: none !important;
+    color: #fff !important;
+    font-size: 28px !important;
+  }
+  #sidebar.active #sidebarClose,
+  nav#sidebar.active #sidebarClose {
+    display: block !important;
+  }
+    #filterPanel {
+      display: none !important;
+      position: fixed !important;
+      top: 50% !important;
+      left: 50% !important;
+      transform: translate(-50%, -50%) !important;
+      min-width: 90vw !important;
+      max-width: 95vw !important;
+      background: #fff !important;
+      z-index: 2101 !important;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.2) !important;
+      border-radius: 16px !important;
+      padding: 20px 12px 12px 12px !important;
+      animation: fadeInScale 0.25s;
+    }
+    #filterPanel.show {
+      display: block !important;
+    }
+    #filterOverlay {
+      display: none !important;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background: rgba(0,0,0,0.25) !important;
+      z-index: 2100 !important;
+    }
+    #filterOverlay.show {
+      display: block !important;
+    }
+    .btn-group-mobile-center{
+      justify-content: right !important;
+      gap: 6px;
+    }
+    
+  }
+/* kết thúc cho menu responsive mobile 430px */
+/* ======================================================================================================== */
+
+
+  
+
+
+
+
