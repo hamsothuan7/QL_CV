@@ -427,6 +427,41 @@ if ($isAdmin || $nndMa == 4) {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="icon" type="image/x-icon" href="/quanlycongviec/favicon.ico">
 </head>
+<?php
+// 1. Lấy tham số lọc từ URL (mặc định tháng/năm hiện tại)
+$selected_month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
+$selected_year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+
+// 2. Cấu hình phân trang
+$limit = 6; // Số dự án hiển thị trên mỗi trang
+$page = isset($_GET['p_page']) ? (int)$_GET['p_page'] : 1;
+$offset = ($page - 1) * $limit;
+
+// 3. Truy vấn lấy danh sách dự án có công việc trong tháng đã chọn
+// Chúng ta Join bảng duan và danhsachcongviec để lọc theo DSCV_NGAYBATDAU
+$where_clause = "WHERE MONTH(cv.DSCV_NGAYBATDAU) = $selected_month 
+                 AND YEAR(cv.DSCV_NGAYBATDAU) = $selected_year";
+
+// Đếm tổng số dự án để phân trang
+$sql_count = "SELECT COUNT(DISTINCT d.DA_MA) as total 
+              FROM duan d 
+              JOIN danhsachcongviec cv ON d.DA_MA = cv.DA_MA 
+              $where_clause";
+$res_count = mysqli_query($conn, $sql_count);
+$total_projects = mysqli_fetch_assoc($res_count)['total'];
+$total_pages = ceil($total_projects / $limit);
+
+// 4. Lấy dữ liệu dự án và tính % tiến độ trung bình từ cột TIEN_DO
+$sql_main = "SELECT d.DA_MA, d.DA_TEN, 
+             AVG(cv.TIEN_DO) as tien_do_tb, 
+             COUNT(cv.DSCV_MA) as so_cong_viec
+             FROM duan d
+             JOIN danhsachcongviec cv ON d.DA_MA = cv.DA_MA
+             $where_clause
+             GROUP BY d.DA_MA
+             LIMIT $limit OFFSET $offset";
+$result_projects = mysqli_query($conn, $sql_main);
+?>
 
 <body>
     <div class="wrapper">
@@ -441,7 +476,7 @@ if ($isAdmin || $nndMa == 4) {
                     <hr>
                     
                     <!-- Bộ lọc dùng chung: luôn hiển thị ở đầu trang -->
-                    <div class="row mb-2">
+                    <!-- <div class="row mb-2">
                         <div class="col-12">
                             <div id="statusFilterPanel2" class="mb-2">
                                 <div class="row align-items-end">
@@ -493,7 +528,138 @@ if ($isAdmin || $nndMa == 4) {
                                 </div>
                             </div>
                         </div>
+                    </div> -->
+                    <style>
+                        .project-card { border: none; border-radius: 15px; transition: transform 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+                        .project-card:hover { transform: translateY(-5px); }
+                        .progress { height: 12px; border-radius: 10px; background-color: #e9ecef; overflow: visible; }
+                        .progress-bar { border-radius: 10px; position: relative; }
+                        .progress-label { position: absolute; right: 0; top: -25px; font-weight: bold; font-size: 12px; color: #333; }
+                    </style>
+
+                    <div class="container-fluid mt-4">
+                        <div class="row mb-4 align-items-center bg-white p-3 rounded shadow-sm">
+                            <div class="col-md-3">
+                                <label class="small text-muted">Chọn Tháng</label>
+                                <select class="form-select" id="filterMonth">
+                                    <?php for($m=1; $m<=12; $m++): ?>
+                                        <option value="<?= $m ?>" <?= $selected_month == $m ? 'selected' : '' ?>>Tháng <?= $m ?></option>
+                                    <?php endfor; ?>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="small text-muted">Chọn Năm</label>
+                                <input type="number" class="form-control" id="filterYear" value="<?= $selected_year ?>">
+                            </div>
+                            <div class="col-md-2 mt-4">
+                                <button class="btn btn-primary w-100" onclick="applyFilter()">
+                                    <i class="fas fa-filter"></i> Lọc dữ liệu
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <?php if (mysqli_num_rows($result_projects) > 0): ?>
+                                <?php while($row = mysqli_fetch_assoc($result_projects)): 
+                                    $progress = round($row['tien_do_tb']);
+                                    $color = ($progress < 50) ? 'bg-danger' : (($progress < 80) ? 'bg-warning' : 'bg-success');
+                                ?>
+                                    <div class="col-md-4 mb-4">
+                                        <div class="card project-card h-100 p-3" onclick="showJobDetails('<?= $row['DA_MA'] ?>', '<?= $selected_month ?>', '<?= $selected_year ?>')">
+                                            <div class="d-flex justify-content-between align-items-start mb-3">
+                                                <div>
+                                                    <span class="badge bg-light text-primary mb-2">ID: <?= $row['DA_MA'] ?></span>
+                                                    <h6 class="card-title fw-bold text-dark"><?= $row['DA_TEN'] ?></h6>
+                                                </div>
+                                                <div class="text-end">
+                                                    <small class="text-muted d-block"><?= $row['so_cong_viec'] ?> CV</small>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mt-4">
+                                                <div class="d-flex justify-content-between mb-1">
+                                                    <small>Tiến độ tổng thể</small>
+                                                    <small class="fw-bold"><?= $progress ?>%</small>
+                                                </div>
+                                                <div class="progress">
+                                                    <div class="progress-bar <?= $color ?> progress-bar-striped progress-bar-animated" 
+                                                        style="width: <?= $progress ?>%"></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endwhile; ?>
+                            <?php else: ?>
+                                <div class="col-12 text-center py-5">
+                                    <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="80" class="opacity-50 mb-3">
+                                    <p class="text-muted">Không có công việc nào bắt đầu trong tháng <?= $selected_month ?>/<?= $selected_year ?></p>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <?php if ($total_pages > 1): ?>
+                        <nav class="mt-4">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                                    <a class="page-link shadow-sm" href="?p_page=<?= $page-1 ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Trước</a>
+                                </li>
+                                <?php for($i=1; $i<=$total_pages; $i++): ?>
+                                    <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                                        <a class="page-link shadow-sm" href="?p_page=<?= $i ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>"><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+                                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                                    <a class="page-link shadow-sm" href="?p_page=<?= $page+1 ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Sau</a>
+                                </li>
+                            </ul>
+                        </nav>
+                        <?php endif; ?>
+
+                        <div class="modal fade" id="modalDetails" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-lg modal-dialog-centered">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-primary text-white">
+                                        <h5 class="modal-title" id="modalTitle">Chi tiết công việc</h5>
+                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                    </div>
+                                    <div class="modal-body" id="modalBodyDetails">
+                                        <div class="text-center p-5">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="mt-2">Đang tải dữ liệu...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <script>
+                    function applyFilter() {
+                        const month = document.getElementById('filterMonth').value;
+                        const year = document.getElementById('filterYear').value;
+                        // Chuyển hướng trang và giữ các tham số
+                        window.location.href = `?month=${month}&year=${year}&p_page=1`;
+                    }
+
+                    function showJobDetails(da_ma, month, year) {
+                        // Hiện modal
+                        var myModal = new bootstrap.Modal(document.getElementById('modalDetails'));
+                        myModal.show();
+                        
+                        // Đổi tiêu đề modal
+                        document.getElementById('modalTitle').innerText = 'Công việc dự án: ' + da_ma;
+
+                        // Gửi AJAX lấy dữ liệu
+                        fetch(`chitietduan.php?da_ma=${da_ma}&month=${month}&year=${year}`)
+                            .then(response => response.text())
+                            .then(data => {
+                                document.getElementById('modalBodyDetails').innerHTML = data;
+                            })
+                            .catch(error => {
+                                document.getElementById('modalBodyDetails').innerHTML = '<p class="text-danger">Lỗi tải dữ liệu!</p>';
+                            });
+                    }
+                    </script>
                     
                     <div class="row">
                         <div class="mb-3 w-100">
@@ -1515,7 +1681,7 @@ window.showModal = function(type = 1) {
         url += '&pb_ma=' + encodeURIComponent(phongbanId);
     }
     
-    fetch(url, {
+    // fetch(url, {
             method: 'GET',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'

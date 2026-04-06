@@ -1,72 +1,39 @@
 <?php
 include('../config.php');
 
-$ph_ma = $_GET['ph_ma'];
-$trangthai = isset($_GET['trangthai']) ? (int)$_GET['trangthai'] : null;  // Có thể null nếu không truyền
+$da_ma = $_GET['da_ma'];
+$month = $_GET['month'];
+$year = $_GET['year'];
 
-// Lấy tên đơn vị phối hợp
-$dv_query = mysqli_query($conn, "SELECT PH_TEN FROM donviphoihop WHERE PH_MA = '$ph_ma'");
-$dv_row = mysqli_fetch_assoc($dv_query);
-$ten_donvi = $dv_row['PH_TEN'];
+$sql = "SELECT * FROM danhsachcongviec 
+        WHERE DA_MA = '$da_ma' 
+        AND MONTH(DSCV_NGAYBATDAU) = '$month' 
+        AND YEAR(DSCV_NGAYBATDAU) = '$year'";
+$result = mysqli_query($conn, $sql);
 
-$trangthai_text = match ($trangthai) {
-    2 => "Hoàn thành",
-    3 => "Trễ",
-    default => "Tiếp nhận"
-};
-
-// Tạo câu truy vấn
-$query = "
-    SELECT da.DA_TEN, dscv.DSCV_TEN, da.DA_NGAYBATDAU, da.DA_NGAYKETTHUC
-    FROM danhsachcongviec dscv
-    JOIN duan da ON dscv.DA_MA = da.DA_MA
-    WHERE dscv.PH_MA = '$ph_ma'
-";
-
-if ($trangthai !== null) {
-    $query .= " AND da.DA_TRANGTHAI = $trangthai";
+if (mysqli_num_rows($result) > 0) {
+    echo '<div class="table-responsive">';
+    echo '<table class="table table-hover">';
+    echo '<thead class="table-light"><tr><th>Tên công việc</th><th>Ngày bắt đầu</th><th>Tiến độ</th></tr></thead>';
+    echo '<tbody>';
+    while ($row = mysqli_fetch_assoc($result)) {
+        $td = $row['TIEN_DO'];
+        $color = ($td == 100) ? 'text-success' : 'text-primary';
+        echo "<tr>
+                <td>{$row['DSCV_TEN']}</td>
+                <td>" . date('d/m/Y', strtotime($row['DSCV_NGAYBATDAU'])) . "</td>
+                <td>
+                    <div class='d-flex align-items-center'>
+                        <span class='me-2 fw-bold $color'>$td%</span>
+                        <div class='progress w-100' style='height: 6px;'>
+                            <div class='progress-bar bg-info' style='width: $td%'></div>
+                        </div>
+                    </div>
+                </td>
+              </tr>";
+    }
+    echo '</tbody></table></div>';
+} else {
+    echo '<p class="text-center">Không tìm thấy công việc chi tiết.</p>';
 }
-
-$result = mysqli_query($conn, $query);
 ?>
-
-
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Chi Tiết Dự Án - <?php echo $ten_donvi; ?></title>
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css">
-</head>
-<body>
-    <div class="container mt-4">
-        <h4 class="mb-3">Chi tiết dự án <strong><?php echo $trangthai_text; ?></strong> của đơn vị: <span style="color: red"><?php echo $ten_donvi; ?></span></h4>
-        <a href="donviphoihop.php" class="btn btn-secondary mb-3">Quay lại</a>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>Tên Dự Án</th>
-                    <th>Tên Công Việc</th>
-                    <th>Ngày Bắt Đầu</th>
-                    <th>Ngày Kết Thúc</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php while ($row = mysqli_fetch_assoc($result)) { ?>
-                <tr>
-                    <td><?php echo $row['DA_TEN']; ?></td>
-                    <td><?php echo $row['DSCV_TEN']; ?></td>
-                    <td><?php echo $row['DA_NGAYBATDAU']; ?></td>
-                    <td><?php echo $row['DA_NGAYKETTHUC']; ?></td>
-
-                </tr>
-                <?php } ?>
-                <?php if (mysqli_num_rows($result) == 0) { ?>
-                <tr>
-                    <td colspan="4" class="text-center">Không có dữ liệu phù hợp.</td>
-                </tr>
-                <?php } ?>
-            </tbody>
-        </table>
-    </div>
-</body>
-</html>
