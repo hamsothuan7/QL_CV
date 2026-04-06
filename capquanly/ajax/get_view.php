@@ -1,79 +1,37 @@
 <?php
-// getView.php
+// ajax/get_view.php
 include('../../config.php');
 
-// Bắt đầu session để lấy thông tin người dùng
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Check if the request is made via AJAX
 if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
-    // Sample data to be passed to the view
+    include_once(__DIR__ . '/query_helper.php');
 
-    //1 đang tiến hành, 2 hoàn thành, 3 dời, 4 hủy, 5 bắt đầu
-    function querySql($conn, $status)
-    {
-        $tvCode = $_SESSION['code'] ?? null;
-        $nndMa = $_SESSION['nnd_ma'] ?? null; // 2 = quản lý
-        $isAdmin = isset($_SESSION['active']) && $_SESSION['active'] == 1 || $nndMa == 4;
+    $keywords = filter_input(INPUT_GET, 'keywords', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
+    $from_date = filter_input(INPUT_GET, 'from_date', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
+    $to_date = filter_input(INPUT_GET, 'to_date', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
 
-        $escStatus = intval($status);
-        $sql = '';
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $perPageInput = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
+    $perPage = in_array($perPageInput, [20, 50, 100]) ? $perPageInput : 20;
 
-        if ($isAdmin) {
-            // Admin: thấy tất cả dự án theo trạng thái
-            $sql = "SELECT * FROM duan WHERE DA_TRANGTHAI = {$escStatus} ORDER BY DA_MA DESC";
-        } elseif ($nndMa == 2 && $tvCode) {
-            // Quản lý: bản thân + cùng phòng ban
-            $escUser = mysqli_real_escape_string($conn, $tvCode);
-            $sql =
-                "SELECT * FROM duan da\n" .
-                "WHERE da.DA_TRANGTHAI = {$escStatus}\n" .
-                "  AND (\n" .
-                "       EXISTS (SELECT 1 FROM danhsachcongviec dcv WHERE dcv.DA_MA = da.DA_MA AND dcv.TV_MA = '{$escUser}')\n" .
-                "    OR da.DA_NGUOIPHUTRACH = '{$escUser}'\n" .
-                "    OR EXISTS (\n" .
-                "           SELECT 1\n" .
-                "           FROM danhsachcongviec dcv2\n" .
-                "           JOIN thanhvien tv2 ON tv2.TV_MA = dcv2.TV_MA\n" .
-                "           WHERE dcv2.DA_MA = da.DA_MA\n" .
-                "             AND tv2.PB_MA = (SELECT PB_MA FROM thanhvien WHERE TV_MA = '{$escUser}' LIMIT 1)\n" .
-                "       )\n" .
-                "    OR EXISTS (\n" .
-                "           SELECT 1 FROM thanhvien tv3\n" .
-                "           WHERE tv3.TV_MA = da.DA_NGUOIPHUTRACH\n" .
-                "             AND tv3.PB_MA = (SELECT PB_MA FROM thanhvien WHERE TV_MA = '{$escUser}' LIMIT 1)\n" .
-                "       )\n" .
-                "  )\n" .
-                "ORDER BY da.DA_MA DESC";
-        } else {
-            // Nhân viên: dự án có công việc của mình hoặc mình là người phụ trách
-            $escUser = mysqli_real_escape_string($conn, $tvCode ?? '');
-            $sql =
-                "SELECT * FROM duan da\n" .
-                "WHERE da.DA_TRANGTHAI = {$escStatus}\n" .
-                "  AND (\n" .
-                "       EXISTS (SELECT 1 FROM danhsachcongviec dcv WHERE dcv.DA_MA = da.DA_MA AND dcv.TV_MA = '{$escUser}')\n" .
-                "    OR da.DA_NGUOIPHUTRACH = '{$escUser}'\n" .
-                "  )\n" .
-                "ORDER BY da.DA_MA DESC";
-        }
+    $kanbanInitLimit = 30;
 
-        $result = mysqli_query($conn, $sql);
-        return $result;
-    }
+    $projectsStart = getProjectsForKanban($conn, 5, $keywords, $from_date, $to_date, $kanbanInitLimit, 0);
+    $projectsInProgress = getProjectsForKanban($conn, 1, $keywords, $from_date, $to_date, $kanbanInitLimit, 0);
+    $projectsMove = getProjectsForKanban($conn, 3, $keywords, $from_date, $to_date, $kanbanInitLimit, 0);
+    $projectsFinish = getProjectsForKanban($conn, 2, $keywords, $from_date, $to_date, $kanbanInitLimit, 0);
+    $projectsCancel = getProjectsForKanban($conn, 4, $keywords, $from_date, $to_date, $kanbanInitLimit, 0);
 
-    //Data trả về theo thứ tự ở view
-    $projectsStart = mysqli_fetch_all(querySql($conn, 5), MYSQLI_ASSOC);
+    $countStart = countProjectsForKanban($conn, 5, $keywords, $from_date, $to_date);
+    $countInProgress = countProjectsForKanban($conn, 1, $keywords, $from_date, $to_date);
+    $countMove = countProjectsForKanban($conn, 3, $keywords, $from_date, $to_date);
+    $countFinish = countProjectsForKanban($conn, 2, $keywords, $from_date, $to_date);
+    $countCancel = countProjectsForKanban($conn, 4, $keywords, $from_date, $to_date);
 
-    $projectsInProgress = mysqli_fetch_all(querySql($conn, 1), MYSQLI_ASSOC);
-
-    $projectsMove = mysqli_fetch_all(querySql($conn, 3), MYSQLI_ASSOC);
-
-    $projectsFinish = mysqli_fetch_all(querySql($conn, 2), MYSQLI_ASSOC);
-
-    $projectsCancel = mysqli_fetch_all(querySql($conn, 4), MYSQLI_ASSOC);
+    $tableData = getProjectsForTable($conn, $keywords, $from_date, $to_date, $page, $perPage);
 
     $data = [
         'conn' => $conn,
@@ -82,21 +40,20 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
         'projectsMove' => $projectsMove,
         'projectsFinish' => $projectsFinish,
         'projectsCancel' => $projectsCancel,
+        'countStart' => $countStart,
+        'countInProgress' => $countInProgress,
+        'countMove' => $countMove,
+        'countFinish' => $countFinish,
+        'countCancel' => $countCancel,
+        'tableData' => $tableData,
+        'kanbanInitLimit' => $kanbanInitLimit
     ];
 
-    // Render the view and pass the data
     echo renderView('jobs.php', $data);
 } else {
     echo "This endpoint accepts only AJAX requests.";
 }
 
-/**
- * Function to render a PHP view with data
- *
- * @param string $view The path to the view file
- * @param array $data Data to be passed to the view
- * @return string Rendered HTML
- */
 function renderView($view, $data)
 {
     extract($data);
@@ -104,5 +61,4 @@ function renderView($view, $data)
     include $view;
     return ob_get_clean();
 }
-
 ?>

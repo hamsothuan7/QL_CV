@@ -2,93 +2,30 @@
 include('../config.php');
 // Bắt đầu session
 session_start();
-// Kiểm tra xem session đã được tạo hay chưa và nếu tên người dùng không được lưu trữ trong session 'username', chuyển hướng người dùng đến trang đăng nhập
+// Kiểm tra xem session đã được tạo hay chưa
 if (!isset($_SESSION['username'])) {
     header('Location: ../index.php');
     exit;
 }
+
+// Include query helper dùng chung (thay thế querySql inline)
+include_once(__DIR__ . '/ajax_work/query_helper.php');
 
 $keywords = $_GET['keywords'] ?? '';
 $from_date = $_GET['from_date'] ?? '';
 $to_date = $_GET['to_date'] ?? '';
 $project_id = $_GET['project_id'] ?? '';
 
-/**
- * 1 đang tiến hành, 2 hoàn thành, 3 dời, 4 hủy, 5 bắt đầu
- * @param mysqli $conn Kết nối database
- * @param int $status Trạng thái công việc
- * @param string $keywords Từ khóa tìm kiếm
- * @param string $from_date Ngày bắt đầu lọc
- * @param string $to_date Ngày kết thúc lọc
- * @return array Danh sách công việc
- */
-function querySql($conn, $status, $keywords = '', $from_date = '', $to_date = '', $project_id = '')
-{
-    $userId = $_SESSION['code'] ?? null;
-    $isAdmin = ($_SESSION['active'] == 1) || ($_SESSION['nnd_ma'] == 4);
-    if (!$userId) return [];
-    if ($isAdmin) {
-        if ($status == 2) {
-            $sql = "SELECT * FROM danhsachcongviec WHERE (DSCV_TRANGTHAI = 2 OR DSCV_TRANGTHAI = 6)  AND dscv_trangthaihd = 1";
-            $types = "";
-        } else {
-            $sql = "SELECT * FROM danhsachcongviec WHERE DSCV_TRANGTHAI = ? AND dscv_trangthaihd = 1";
-            $params = [$status];
-            $types = "i";
-        }
-    } else {
-        if ($status == 2) {
-            $sql = "SELECT DISTINCT d.* FROM danhsachcongviec d 
-                LEFT JOIN duan du ON d.DA_MA = du.DA_MA 
-                LEFT JOIN duan_thanhvien dt ON d.DA_MA = dt.DA_MA 
-                WHERE (d.DSCV_TRANGTHAI = 2 OR  d.DSCV_TRANGTHAI = 6)
-                AND d.dscv_trangthaihd = 1 
-                AND (d.TV_MA = ? OR dt.TV_MA = ? OR du.DA_NGUOIPHUTRACH = ? )";
-            $params = [$userId, $userId, $userId];
-            $types = "sss";
-        } else {
-            $sql = "SELECT DISTINCT d.* FROM danhsachcongviec d 
-                LEFT JOIN duan du ON d.DA_MA = du.DA_MA 
-                LEFT JOIN duan_thanhvien dt ON d.DA_MA = dt.DA_MA 
-                WHERE d.DSCV_TRANGTHAI = ? 
-                AND d.dscv_trangthaihd = 1 
-                AND (d.TV_MA = ? OR dt.TV_MA = ? OR du.DA_NGUOIPHUTRACH = ? )";
-            $params = [$status, $userId, $userId, $userId];
-            $types = "isss";
-        }
-    }
-    if (!empty($keywords)) {
-        $sql .= " AND DSCV_TEN LIKE ?";
-        $params[] = "%$keywords%";
-        $types .= "s";
-    }
-    if (!empty($from_date)) {
-        $sql .= " AND DATE(DSCV_NGAYBATDAU) >= ?";
-        $params[] = $from_date;
-        $types .= "s";
-    }
-    if (!empty($to_date)) {
-        $sql .= " AND DATE(DSCV_NGAYKETTHUC) <= ?";
-        $params[] = $to_date;
-        $types .= "s";
-    }
-    if ($project_id === 'private') {
-        $sql .= $isAdmin ? " AND (DA_MA IS NULL OR DA_MA = '')" : " AND (d.DA_MA IS NULL OR d.DA_MA = '')";
-    } else if (!empty($project_id)) {
-        $sql .= $isAdmin ? " AND DA_MA = ?" : " AND d.DA_MA = ?";
-        $params[] = $project_id;
-        $types .= "s";
-    }
-    $sql .= " ORDER BY DSCV_MA DESC";
-    $stmt = $conn->prepare($sql);
-    if ($stmt === false) return [];
-    if (!empty($params)) $stmt->bind_param($types, ...$params);
-    if (!$stmt->execute()) { $stmt->close(); return []; }
-    $result = $stmt->get_result();
-    $data = $result->fetch_all(MYSQLI_ASSOC);
-    $stmt->close();
-    return $data;
-}
+// Tham số phân trang
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPageInput = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
+$perPage = in_array($perPageInput, [20, 50, 100]) ? $perPageInput : 20;
+
+// Số card Kanban load lần đầu (lazy load)
+$kanbanInitLimit = 30;
+
+// querySql() đã được chuyển sang ajax_work/query_helper.php
+// Sử dụng getTasksByStatus(), getTasksForTable(), getTasksForKanban()
 
 // Hàm kiểm tra và cập nhật trạng thái công việc
 function updateExpiredTasks($conn)
@@ -255,12 +192,22 @@ $sql = "SELECT * FROM phongban ";
 $result = mysqli_query($conn, $sql);
 $rooms = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
-//Data trả về theo thứ tự ở view
-$projectsStart = querySql($conn, 5, $keywords, $from_date, $to_date, $project_id);
-$projectsInProgress = querySql($conn, 1, $keywords, $from_date, $to_date, $project_id);
-$projectsMove = querySql($conn, 3, $keywords, $from_date, $to_date, $project_id);
-$projectsFinish = querySql($conn, 2, $keywords, $from_date, $to_date, $project_id);
-$projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_id);
+// === KANBAN DATA (lazy load: chỉ load $kanbanInitLimit card đầu tiên mỗi cột) ===
+$projectsStart = getTasksForKanban($conn, 5, $keywords, $from_date, $to_date, $project_id, $kanbanInitLimit, 0);
+$projectsInProgress = getTasksForKanban($conn, 1, $keywords, $from_date, $to_date, $project_id, $kanbanInitLimit, 0);
+$projectsMove = getTasksForKanban($conn, 3, $keywords, $from_date, $to_date, $project_id, $kanbanInitLimit, 0);
+$projectsFinish = getTasksForKanban($conn, 2, $keywords, $from_date, $to_date, $project_id, $kanbanInitLimit, 0);
+$projectsCancel = getTasksForKanban($conn, 4, $keywords, $from_date, $to_date, $project_id, $kanbanInitLimit, 0);
+
+// Đếm tổng để biết còn bao nhiêu card chưa load
+$countStart = countTasksForKanban($conn, 5, $keywords, $from_date, $to_date, $project_id);
+$countInProgress = countTasksForKanban($conn, 1, $keywords, $from_date, $to_date, $project_id);
+$countMove = countTasksForKanban($conn, 3, $keywords, $from_date, $to_date, $project_id);
+$countFinish = countTasksForKanban($conn, 2, $keywords, $from_date, $to_date, $project_id);
+$countCancel = countTasksForKanban($conn, 4, $keywords, $from_date, $to_date, $project_id);
+
+// === TABLE DATA (phân trang) ===
+$tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_id, $page, $perPage);
 
 ?>
 <!DOCTYPE html>
@@ -279,6 +226,7 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
     <!-- Our Custom CSS -->
     <link rel="stylesheet" href="../style/style_DAL.css">
     <link rel="stylesheet" href="./css/style.css">
+    <link rel="stylesheet" href="./css/danhsachcv_new.css">
     <!-- Scrollbar Custom CSS -->
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/malihu-custom-scrollbar-plugin/3.1.5/jquery.mCustomScrollbar.min.css">
@@ -313,106 +261,85 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
 
     <!-- Page Content  -->
     <div id="content">
-        <div class="top-bar-block">
-            <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center ml-4 mb-2">
-                    <a href="#" class="btn btn-success mr-2" id="btnAddPrivateTask">
-                        <i class="fas fa-plus-circle mt-1 mr-1"></i> Thêm công việc riêng
-                    </a>
-                    <button onclick="window.location.href = window.location.pathname + '?t=' + new Date().getTime()" class="btn btn-primary" title="Tải lại trang (không cache)">
-                         <a><i class="fas fa-sync-alt"></i> Tải lại trang</a>
-                    </button>
-                    <!-- reload trang không xoá cache 
-                    <button onclick="window.location.reload()" class="btn btn-primary" title="Tải lại trang">
-                        <i class="fas fa-sync-alt"></i>
-                    </button> -->
-                </div>
-                <!-- Phần tìm kiếm và nút thêm công việc - đặt sát lề phải -->
-                <div class="d-flex align-items-center ml-auto flex-column">
-                    <!-- Nút lọc chỉ hiện ở mobile/tablet -->
-                    <button id="toggleFilterBtn" class="btn btn-primary d-md-none mb-2" type="button" style="width: 100%"><i class="fas fa-filter"></i> Lọc</button>
-                    <div id="filterOverlay" style="display:none;"></div>
-                    <div id="filterPanel" style="position:relative;">
-                        <button id="closeFilterPanel" class="btn btn-link" type="button" style="position:absolute;top:8px;right:8px;font-size:22px;display:none;">&times;</button>
-                        
-                        <!-- Dòng lọc dự án nằm trên -->
-                        <div class="mb-3">
-                            <label class="mb-1 text-secondary small" for="project_id">Dự án</label>
-                            <select id="project_id" name="project_id" class="form-control form-control-sm rounded-pill shadow-sm select2" style="width: 100%;">
-                                <option value="">-- Tất cả dự án --</option>
-                                <option value="private" <?php if(isset($_GET['project_id']) && $_GET['project_id'] === 'private') echo 'selected'; ?>>Công việc riêng</option>
-                                <?php foreach ($projects as $project): ?>
-                                    <option value="<?php echo $project['DA_MA']; ?>" <?php if(isset($_GET['project_id']) && $_GET['project_id'] == $project['DA_MA']) echo 'selected'; ?>>
-                                        <?php echo htmlspecialchars($project['DA_TEN']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+        <!-- ========== NEW FILTER & HEADER BAR ========== -->
+        <div class="cv-header-bar">
+            <div class="cv-header-row">
+                <!-- Filter Group -->
+                <div class="cv-filter-group">
+                    <select id="project_id" name="project_id" class="cv-filter-select select2">
+                        <option value="">📁 Tất cả dự án</option>
+                        <option value="private" <?php if(isset($_GET['project_id']) && $_GET['project_id'] === 'private') echo 'selected'; ?>>Công việc riêng</option>
+                        <?php foreach ($projects as $project): ?>
+                            <option value="<?php echo $project['DA_MA']; ?>" <?php if(isset($_GET['project_id']) && $_GET['project_id'] == $project['DA_MA']) echo 'selected'; ?>>
+                                <?php echo htmlspecialchars($project['DA_TEN']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+
+                    <form id="searchForm" class="cv-filter-group" method="get" style="gap:8px;flex:unset;">
+                        <input type="text" name="keywords" class="cv-filter-input" placeholder="🔍 Tìm kiếm..." value="<?php echo htmlspecialchars($keywords); ?>">
+                        <div class="cv-filter-date-group">
+                            <span class="cv-filter-label">Từ ngày</span>
+                            <input type="date" id="from_date" name="from_date" class="cv-filter-input" value="<?php echo htmlspecialchars($from_date); ?>">
                         </div>
-                        
-                        <!-- Form tìm kiếm còn lại -->
-                        <form id="searchForm" class="d-flex align-items-end flex-nowrap gap-2" method="get">
-                            <input type="text" name="keywords" class="form-control form-control-sm rounded-pill shadow-sm" placeholder="Tìm kiếm công việc..." value="<?php echo htmlspecialchars($keywords); ?>" style="width: 180px; min-width: 120px;">
-                            <div class="d-flex flex-column align-items-start">
-                                <label class="mb-1 text-secondary small" for="from_date">Từ ngày</label>
-                                <input type="date" id="from_date" name="from_date" class="form-control form-control-sm rounded-pill shadow-sm" value="<?php echo htmlspecialchars($from_date); ?>" style="width: 130px; min-width: 100px;">
-                            </div>
-                            <div class="d-flex flex-column align-items-start">
-                                <label class="mb-1 text-secondary small" for="to_date">Đến ngày</label>
-                                <input type="date" id="to_date" name="to_date" class="form-control form-control-sm rounded-pill shadow-sm" value="<?php echo htmlspecialchars($to_date); ?>" style="width: 130px; min-width: 100px;">
-                            </div>
-                            <button class="btn btn-danger btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center" style="height: 34px;" type="submit">
-                                <i class="fal fa-search me-2"></i> Tìm kiếm
-                            </button>
-                            <button type="button" id="resetSearch" class="btn btn-secondary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center" style="height: 34px;">
-                                <i class="fal fa-undo me-2"></i> Đặt lại
-                            </button>
-                        </form>
-                        <script>
-                            // Xử lý submit form với project_id
-                            document.getElementById('searchForm').onsubmit = function(e) {
-                                e.preventDefault();
-                                var form = this;
-                                var projectId = document.getElementById('project_id').value;
-                                
-                                // Tạo input hidden cho project_id nếu chưa có
-                                var hiddenInput = form.querySelector('input[name="project_id"]');
-                                if (!hiddenInput) {
-                                    hiddenInput = document.createElement('input');
-                                    hiddenInput.type = 'hidden';
-                                    hiddenInput.name = 'project_id';
-                                    form.appendChild(hiddenInput);
-                                }
-                                hiddenInput.value = projectId;
-                                
-                                form.submit();
-                            };
-                            
-                            // Xử lý reset form
-                            document.getElementById('resetSearch').onclick = function() {
-                                var form = document.getElementById('searchForm');
-                                var projectSelect = document.getElementById('project_id');
-                                
-                                form.keywords.value = '';
-                                form.from_date.value = '';
-                                form.to_date.value = '';
-                                projectSelect.value = ''; // Reset project_id
-                                
-                                // Trigger change event cho select2
-                                if (typeof $.fn.select2 !== 'undefined') {
-                                    $(projectSelect).trigger('change');
-                                }
-                                
-                                form.submit();
-                            };
-                        </script>
-                    </div>
+                        <div class="cv-filter-date-group">
+                            <span class="cv-filter-label">Đến ngày</span>
+                            <input type="date" id="to_date" name="to_date" class="cv-filter-input" value="<?php echo htmlspecialchars($to_date); ?>">
+                        </div>
+                        <button class="cv-btn cv-btn-danger" type="submit"><i class="fal fa-search"></i> Tìm</button>
+                        <button type="button" id="resetSearch" class="cv-btn cv-btn-outline"><i class="fal fa-undo"></i> Đặt lại</button>
+                    </form>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="cv-header-actions" style="display:flex;gap:8px;align-items:center;">
+                    <a href="#" class="cv-btn cv-btn-success" id="btnAddPrivateTask"><i class="fas fa-plus-circle"></i> Thêm CV riêng</a>
+                </div>
+
+                <!-- View Toggle -->
+                <div class="cv-view-toggle">
+                    <button class="cv-view-toggle-btn active" id="btnKanbanView" title="Chế độ Kanban"><i class="fas fa-columns"></i> Kanban</button>
+                    <button class="cv-view-toggle-btn" id="btnTableView" title="Chế độ Bảng"><i class="fas fa-list"></i> Bảng</button>
                 </div>
             </div>
         </div>
+
+        <!-- ========== BODY VIEWS ========== -->
         <div class="body-section" id="result">
             <?php include('ajax_work/jobs.php'); ?>
         </div>
         
+        <!-- Filter form JS -->
+        <script>
+            // Submit form with project_id
+            document.getElementById('searchForm').onsubmit = function(e) {
+                e.preventDefault();
+                var form = this;
+                var projectId = document.getElementById('project_id').value;
+                var hiddenInput = form.querySelector('input[name="project_id"]');
+                if (!hiddenInput) {
+                    hiddenInput = document.createElement('input');
+                    hiddenInput.type = 'hidden';
+                    hiddenInput.name = 'project_id';
+                    form.appendChild(hiddenInput);
+                }
+                hiddenInput.value = projectId;
+                form.submit();
+            };
+            // Reset form
+            document.getElementById('resetSearch').onclick = function() {
+                var form = document.getElementById('searchForm');
+                var projectSelect = document.getElementById('project_id');
+                form.keywords.value = '';
+                form.from_date.value = '';
+                form.to_date.value = '';
+                projectSelect.value = '';
+                if (typeof $.fn.select2 !== 'undefined') {
+                    $(projectSelect).trigger('change');
+                }
+                form.submit();
+            };
+        </script>
     </div>
 </div>
 <!-- Modal -->
@@ -531,7 +458,8 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
     $(document).ready(function () {
         // Load dữ liệu công việc khi trang load xong
         setTimeout(function() {
-            loadViewJobs();
+            loadViewJobs(currentPage, currentPerPage);
+            initKanbanLazyLoad();
         }, 100);
         
         // Khởi tạo select2 cho dropdown dự án
@@ -1066,7 +994,14 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
             });
         });
 
-        function loadViewJobs() {
+        // === Biến phân trang toàn cục ===
+        var currentPage = <?php echo $page; ?>;
+        var currentPerPage = <?php echo $perPage; ?>;
+
+        function loadViewJobs(page, perPage) {
+            page = page || currentPage || 1;
+            perPage = perPage || currentPerPage || 20;
+
             // Lấy các tham số lọc hiện tại
             const keywords = $('input[name="keywords"]').val() || '';
             const from_date = $('#from_date').val() || '';
@@ -1079,9 +1014,18 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
             if (from_date) params.append('from_date', from_date);
             if (to_date) params.append('to_date', to_date);
             if (project_id) params.append('project_id', project_id);
+            params.append('page', page);
+            params.append('per_page', perPage);
             
-            const url = 'ajax_work/get_view.php' + (params.toString() ? '?' + params.toString() : '');
+            const url = 'ajax_work/get_view.php?' + params.toString();
             
+            // Hiển thị loading spinner
+            var $result = $('#result');
+            $result.addClass('cv-loading');
+            if (!$result.find('.cv-loading-overlay').length) {
+                $result.append('<div class="cv-loading-overlay"><div class="cv-spinner"></div></div>');
+            }
+
             fetch(url, {
                 method: 'GET',
                 headers: {
@@ -1090,20 +1034,133 @@ $projectsCancel = querySql($conn, 4, $keywords, $from_date, $to_date, $project_i
             })
                 .then(response => response.text())
                 .then(html => {
+                    $result.removeClass('cv-loading');
                     document.getElementById('result').innerHTML = html;
                     loadJsDropDrag();
-                    $('body').on('click', '.menuJob', function (e) {
-                        e.preventDefault();
-                        let id = $(this).data('id');
-                        if ($('.menuDiv_' + id).is(':visible'))
-                            $('.menuDiv_' + id).show();
-                        else
-                            $('.menuDiv_' + id).hide();
-                    });
+                    
+                    // Cập nhật biến toàn cục
+                    currentPage = page;
+                    currentPerPage = perPage;
+                    
+                    // Cập nhật URL trên thanh địa chỉ (không reload trang)
+                    var stateParams = new URLSearchParams(window.location.search);
+                    stateParams.set('page', page);
+                    stateParams.set('per_page', perPage);
+                    var newUrl = window.location.pathname + '?' + stateParams.toString();
+                    history.pushState({page: page, perPage: perPage}, '', newUrl);
 
+                    // Restore view toggle state after AJAX reload
+                    var savedView = localStorage.getItem('cv_view_mode') || 'kanban';
+                    if (savedView === 'table' && typeof window.switchToTable === 'function') {
+                        window.switchToTable(false);
+                    } else if (typeof window.switchToKanban === 'function') {
+                        window.switchToKanban(false);
+                    }
+
+                    // Khởi tạo lại kanban lazy load
+                    initKanbanLazyLoad();
                 })
-                .catch(error => console.error('Error:', error));
+                .catch(error => {
+                    $result.removeClass('cv-loading');
+                    console.error('Error:', error);
+                });
         }
+
+        // === Event delegation cho phân trang ===
+        $('body').on('click', '.cv-page-btn[data-page], .cv-page-num[data-page]', function(e) {
+            e.preventDefault();
+            var page = $(this).data('page');
+            if (page && !$(this).hasClass('disabled')) {
+                loadViewJobs(page, currentPerPage);
+                // Scroll lên đầu bảng
+                $('html, body').animate({ scrollTop: $('#result').offset().top - 80 }, 300);
+            }
+        });
+
+        // === Thay đổi số bản ghi / trang ===
+        $('body').on('change', '#perPageSelect', function() {
+            currentPerPage = parseInt($(this).val()) || 20;
+            loadViewJobs(1, currentPerPage); // Reset về trang 1
+        });
+
+        // === Xử lý nút Back/Forward của browser ===
+        window.addEventListener('popstate', function(e) {
+            if (e.state && e.state.page) {
+                loadViewJobs(e.state.page, e.state.perPage || currentPerPage);
+            }
+        });
+
+        // === Kanban Lazy Load ===
+        function initKanbanLazyLoad() {
+            $('.cv-kanban-col-body').each(function() {
+                var $colBody = $(this);
+                var $loadMoreBtn = $colBody.find('.cv-load-more-btn');
+                if ($loadMoreBtn.length === 0) return;
+
+                // Intersection Observer để tự động load khi cuộn tới nút
+                var observer = new IntersectionObserver(function(entries) {
+                    entries.forEach(function(entry) {
+                        if (entry.isIntersecting) {
+                            $loadMoreBtn.trigger('click');
+                        }
+                    });
+                }, { root: $colBody[0], threshold: 0.1 });
+
+                if ($loadMoreBtn[0]) {
+                    observer.observe($loadMoreBtn[0]);
+                }
+            });
+        }
+
+        // === Load thêm cards cho Kanban ===
+        $('body').on('click', '.cv-load-more-btn', function(e) {
+            e.preventDefault();
+            var $btn = $(this);
+            if ($btn.hasClass('cv-loading-more')) return;
+
+            var status = $btn.data('status');
+            var offset = $btn.data('offset');
+            var total = $btn.data('total');
+            var $list = $btn.closest('.cv-kanban-col-body').find('ul');
+
+            $btn.addClass('cv-loading-more').html('<div class="cv-spinner-sm"></div> Đang tải...');
+
+            var params = new URLSearchParams();
+            params.append('status', status);
+            params.append('offset', offset);
+            params.append('limit', 30);
+            var keywords = $('input[name="keywords"]').val() || '';
+            var from_date = $('#from_date').val() || '';
+            var to_date = $('#to_date').val() || '';
+            var project_id = $('#project_id').val() || '';
+            if (keywords) params.append('keywords', keywords);
+            if (from_date) params.append('from_date', from_date);
+            if (to_date) params.append('to_date', to_date);
+            if (project_id) params.append('project_id', project_id);
+
+            fetch('ajax_work/get_kanban_cards.php?' + params.toString(), {
+                method: 'GET',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                if (res.html) {
+                    $btn.closest('li').before(res.html);
+                }
+                var newOffset = offset + (res.loaded || 0);
+                if (newOffset >= total || !res.html) {
+                    $btn.closest('li').remove(); // Không còn card nào
+                } else {
+                    $btn.data('offset', newOffset)
+                        .removeClass('cv-loading-more')
+                        .html('<i class="fal fa-arrow-down"></i> Xem thêm (' + (total - newOffset) + ')');
+                }
+                loadJsDropDrag();
+            })
+            .catch(function() {
+                $btn.removeClass('cv-loading-more').html('<i class="fal fa-arrow-down"></i> Thử lại');
+            });
+        });
 
         function loadViewEdit(code) {
             fetch('ajax_work/get_view_edit.php?code=' + code, {
@@ -1231,5 +1288,55 @@ $(document).ready(function() {
     }
 });
 </script>
+
+<!-- ========== VIEW TOGGLE SCRIPT ========== -->
+<script>
+$(document).ready(function() {
+    var $btnKanban = $('#btnKanbanView');
+    var $btnTable = $('#btnTableView');
+    
+    // Restore saved view preference
+    var savedView = localStorage.getItem('cv_view_mode') || 'kanban';
+    if (savedView === 'table') {
+        switchToTable(false);
+    }
+    
+    // Kanban button click
+    $btnKanban.on('click', function() {
+        switchToKanban(true);
+    });
+    
+    // Table button click
+    $btnTable.on('click', function() {
+        switchToTable(true);
+    });
+    
+    // Hàm luôn query fresh DOM elements (vì #result bị thay innerHTML sau AJAX)
+    function switchToKanban(animate) {
+        $btnKanban.addClass('active');
+        $btnTable.removeClass('active');
+        // Query lại từ DOM mới mỗi lần
+        $('#tableView').addClass('cv-hidden').removeClass('cv-fade-in');
+        $('#kanbanView').removeClass('cv-hidden');
+        if (animate) $('#kanbanView').addClass('cv-fade-in');
+        localStorage.setItem('cv_view_mode', 'kanban');
+    }
+    
+    function switchToTable(animate) {
+        $btnTable.addClass('active');
+        $btnKanban.removeClass('active');
+        // Query lại từ DOM mới mỗi lần
+        $('#kanbanView').addClass('cv-hidden').removeClass('cv-fade-in');
+        $('#tableView').removeClass('cv-hidden');
+        if (animate) $('#tableView').addClass('cv-fade-in');
+        localStorage.setItem('cv_view_mode', 'table');
+    }
+
+    // Expose functions globally để loadViewJobs có thể gọi
+    window.switchToKanban = switchToKanban;
+    window.switchToTable = switchToTable;
+});
+</script>
+
 </body>
 </html>
