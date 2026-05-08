@@ -431,6 +431,7 @@ if ($isAdmin || $nndMa == 4) {
 // 1. Lấy tham số lọc từ URL (mặc định tháng/năm hiện tại)
 $selected_month = isset($_GET['month']) ? (int)$_GET['month'] : date('m');
 $selected_year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
+$selected_pb = isset($_GET['pb_ma']) ? mysqli_real_escape_string($conn, $_GET['pb_ma']) : '';
 
 // 2. Cấu hình phân trang
 $limit = 6; // Số dự án hiển thị trên mỗi trang
@@ -441,6 +442,11 @@ $offset = ($page - 1) * $limit;
 // Chúng ta Join bảng duan và danhsachcongviec để lọc theo DSCV_NGAYBATDAU
 $where_clause = "WHERE MONTH(cv.DSCV_NGAYBATDAU) = $selected_month 
                  AND YEAR(cv.DSCV_NGAYBATDAU) = $selected_year";
+
+// Thêm điều kiện lọc theo phòng ban nếu có
+if (!empty($selected_pb)) {
+    $where_clause .= " AND d.PB_MA = '$selected_pb'";
+}
 
 // Đếm tổng số dự án để phân trang
 $sql_count = "SELECT COUNT(DISTINCT d.DA_MA) as total 
@@ -476,157 +482,381 @@ $result_projects = mysqli_query($conn, $sql_main);
                     <hr>
                     
                     <!-- Bộ lọc dùng chung: luôn hiển thị ở đầu trang -->
-                    <!-- <div class="row mb-2">
-                        <div class="col-12">
-                            <div id="statusFilterPanel2" class="mb-2">
-                                <div class="row align-items-end">
-                                    <?php 
-                                    // Lấy danh sách phòng ban
-                                    $sql_pb = "SELECT * FROM phongban ORDER BY PB_TEN";
-                                    $result_pb = mysqli_query($conn, $sql_pb);
-                                    $phongbans = [];
-                                    while ($row = mysqli_fetch_assoc($result_pb)) {
-                                        $phongbans[] = $row;
-                                    }
-                                    ?>
-                                    
-                                    <?php if (isset($_SESSION['active']) && $_SESSION['active'] == 1 || (isset($_SESSION['nnd_ma']) && $_SESSION['nnd_ma'] == 1) || (isset($_SESSION['nnd_ma']) && $_SESSION['nnd_ma'] == 4)): ?>
-                                    <div class="col-12 col-md-3">
-                                        <select class="form-control form-control-sm status-select-input w-100" id="phongbanFilter">
-                                            <option value="">-- Tất cả phòng ban --</option>
-                                            <?php foreach ($phongbans as $pb): ?>
-                                                <option value="<?php echo $pb['PB_MA']; ?>"><?php echo $pb['PB_TEN']; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+                   <hr>
+            
+            <?php 
+            // 1. LẤY DỮ LIỆU PHÒNG BAN TỪ DATABASE
+            $sql_pb = "SELECT * FROM phongban ORDER BY PB_TEN";
+            $result_pb = mysqli_query($conn, $sql_pb);
+            $phongbans = [];
+            if ($result_pb) {
+                while ($row = mysqli_fetch_assoc($result_pb)) {
+                    $phongbans[] = $row;
+                }
+            }
+
+            // 2. KHỞI TẠO CÁC BIẾN TỪ URL (Để giữ trạng thái bộ lọc)
+            $selected_pb = isset($_GET['pb_ma']) ? $_GET['pb_ma'] : '';
+            $selected_month = isset($_GET['month']) ? $_GET['month'] : date('m');
+            $selected_year = isset($_GET['year']) ? $_GET['year'] : date('Y');
+            ?>
+
+            <div class="row mb-4 align-items-end bg-white p-3 rounded shadow-sm mx-0">
+                
+                <?php if (isset($_SESSION['active']) && $_SESSION['active'] == 1 || (isset($_SESSION['nnd_ma']) && $_SESSION['nnd_ma'] == 1) || (isset($_SESSION['nnd_ma']) && $_SESSION['nnd_ma'] == 4)): ?>
+                <div class="col-12 col-md-4 mb-2 mb-md-0">
+                    <label class="small text-muted fw-bold mb-1">Chọn Phòng Ban</label>
+                    <select class="form-select" id="phongbanFilter">
+                        <option value="">-- Tất cả phòng ban --</option>
+                        <?php foreach ($phongbans as $pb): ?>
+                            <option value="<?php echo $pb['PB_MA']; ?>" <?php echo ($selected_pb == $pb['PB_MA']) ? 'selected' : ''; ?>>
+                                <?php echo $pb['PB_TEN']; ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
+                
+                <div class="col-12 col-md-3 mb-2 mb-md-0">
+                    <label class="small text-muted fw-bold mb-1">Chọn Tháng</label>
+                    <select class="form-select" id="filterMonth">
+                        <?php for($m=1; $m<=12; $m++): ?>
+                            <option value="<?= $m ?>" <?= $selected_month == $m ? 'selected' : '' ?>>Tháng <?= $m ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3 mb-2 mb-md-0">
+                    <label class="small text-muted fw-bold mb-1">Chọn Năm</label>
+                    <input type="number" class="form-control" id="filterYear" 
+                           value="<?= $selected_year ?>" min="1900" max="2100">
+                </div>
+
+                <div class="col-12 col-md-auto mt-3 mt-md-0 d-flex gap-2">
+                    <button type="button" class="btn btn-primary" onclick="applyFilter()">
+                        <i class="fas fa-search"></i> Lọc
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="resetFilter()" title="Đặt lại">
+                        <i class="fas fa-undo"></i>
+                    </button>
+                </div>
+            </div>
+
+            <style>
+                .project-card { border: none; border-radius: 15px; transition: transform 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.05); cursor: pointer; display: flex; flex-direction: column; }
+                .project-card:hover { transform: translateY(-5px); }
+                .project-card .card-title-area { min-height: 48px; }
+                .progress { height: 12px; border-radius: 10px; background-color: #e9ecef; overflow: visible; }
+                .progress-bar { border-radius: 10px; position: relative; }
+            </style>
+
+            <?php $filteredDaMa = []; ?>
+            <div class="row">
+                <?php if (isset($result_projects) && mysqli_num_rows($result_projects) > 0): ?>
+                    <?php while($row = mysqli_fetch_assoc($result_projects)): 
+                        $filteredDaMa[] = $row['DA_MA'];
+                        $progress = round($row['tien_do_tb']);
+                        $color = 'bg-primary';
+                    ?>
+                        <div class="col-md-4 mb-4">
+                            <div class="card project-card h-100 p-3">
+                                <div class="d-flex justify-content-between align-items-start mb-3 card-title-area">
+                                    <div>
+                                        <h6 class="card-title fw-bold text-dark"><?= $row['DA_TEN'] ?></h6>
                                     </div>
-                                    <?php endif; ?>
-                                    
-                                    <div class="col-12 col-md">
-                                        <select class="form-control form-control-sm status-select-input w-100" id="projectFilter2">
-                                            <option value="">-- Chọn dự án --</option>
-                                            <?php foreach ($projects as $project): ?>
-                                                <option value="<?php echo $project['DA_MA']; ?>" data-nam="<?php echo date('Y', strtotime($project['DA_NGAYBATDAU'])) ?? ''; ?>" data-phongban="<?php echo $project['PB_MA'] ?? ''; ?>">[<?php echo $project['DA_MA']; ?>] <?php echo $project['DA_TEN']; ?></option>
-                                            <?php endforeach; ?>
-                                        </select>
+                                    <div class="text-end flex-shrink-0">
+                                        <small class="text-muted d-block"><?= $row['so_cong_viec'] ?> CV</small>
                                     </div>
-                                    <div class="col-12 col-md-auto mt-2 mt-md-0">
-                                        <input type="number" class="form-control form-control-sm status-select-input" id="yearFilter" 
-                                               placeholder="Năm" title="Nhập năm" 
-                                               value="<?php echo date('Y'); ?>" 
-                                               min="1900" max="2100" style="width: 100px;">
+                                </div>
+                                
+                                <div class="mt-4 mb-3">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <small>Tiến độ tổng thể</small>
+                                        <small class="fw-bold"><?= $progress ?>%</small>
                                     </div>
-                                    <div class="col-auto">
-                                        <button type="button" class="btn btn-primary btn-sm status-filter-btn" id="applyStatusFilter2">
-                                                        <i class="fas fa-search"></i> Lọc
-                                        </button>
+                                    <div class="progress">
+                                        <div class="progress-bar <?= $color ?> progress-bar-striped progress-bar-animated" 
+                                            style="width: <?= $progress ?>%"></div>
                                     </div>
-                                    <div class="col-auto" >
-                                        <button type="button" class="btn btn-secondary btn-sm status-filter-btn" id="resetStatusFilter2" title="Đặt lại">
-                                                        <i class="fas fa-undo"></i>
-                                        </button>
-                                    </div>
+                                </div>
+
+                                <div class="mt-auto border-top pt-3 d-flex justify-content-between align-items-center">
+                                    <button type="button" class="btn btn-sm btn-outline-primary" 
+                                            onclick="showJobDetails('<?= $row['DA_MA'] ?>', '<?= $selected_month ?>', '<?= $selected_year ?>')">
+                                        <i class="fas fa-list-ul"></i> Chi tiết
+                                    </button>
+
+                                   
                                 </div>
                             </div>
                         </div>
-                    </div> -->
+                    <?php endwhile; ?>
+                <?php else: ?>
+                    <div class="col-12 text-center py-5">
+                        <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="80" class="opacity-50 mb-3" alt="No data">
+                        <p class="text-muted">Không có công việc nào thuộc tiêu chí lọc này!</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+
+
+            <?php if (isset($total_pages) && $total_pages > 1): ?>
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                        <a class="page-link shadow-sm" href="?p_page=<?= $page-1 ?>&pb_ma=<?= $selected_pb ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Trước</a>
+                    </li>
+                    <?php for($i=1; $i<=$total_pages; $i++): ?>
+                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                            <a class="page-link shadow-sm" href="?p_page=<?= $i ?>&pb_ma=<?= $selected_pb ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>"><?= $i ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                        <a class="page-link shadow-sm" href="?p_page=<?= $page+1 ?>&pb_ma=<?= $selected_pb ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Sau</a>
+                    </li>
+                </ul>
+            </nav>
+            <?php endif; ?>
+
+            <div class="modal fade" id="modalDetails" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title" id="modalTitle">Chi tiết công việc</h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body" id="modalBodyDetails">
+                            <div class="text-center p-5">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2">Đang tải dữ liệu...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <script>
+            function applyFilter() {
+                // Lấy giá trị
+                const phongban = document.getElementById('phongbanFilter') ? document.getElementById('phongbanFilter').value : '';
+                const month = document.getElementById('filterMonth') ? document.getElementById('filterMonth').value : '';
+                const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : '';
+
+                // Khởi tạo URL
+                let url = `?p_page=1`;
+                if (phongban) url += `&pb_ma=${phongban}`;
+                if (month) url += `&month=${month}`;
+                if (year) url += `&year=${year}`;
+
+                // Chuyển hướng
+                window.location.href = url;
+            }
+
+            function resetFilter() {
+                // Trở về trang 1 không có bất kỳ bộ lọc nào
+                window.location.href = '?p_page=1';
+            }
+
+            function showJobDetails(da_ma, month, year) {
+                // Hiện modal
+                var myModal = new bootstrap.Modal(document.getElementById('modalDetails'));
+                myModal.show();
+                
+                // Set lại UI loading và tiêu đề
+                document.getElementById('modalTitle').innerText = 'Công việc dự án: ' + da_ma;
+                document.getElementById('modalBodyDetails').innerHTML = `
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2">Đang tải dữ liệu...</p>
+                    </div>`;
+
+                // Gọi API lấy dữ liệu chi tiết
+                fetch(`chitietduan.php?da_ma=${da_ma}&month=${month}&year=${year}`)
+                    .then(response => response.text())
+                    .then(data => {
+                        document.getElementById('modalBodyDetails').innerHTML = data;
+                    })
+                    .catch(error => {
+                        document.getElementById('modalBodyDetails').innerHTML = '<p class="text-danger">Lỗi tải dữ liệu!</p>';
+                    });
+            }
+            </script>
+                    
+                    <!-- Bộ lọc dự án cho biểu đồ -->
                     <style>
-                        .project-card { border: none; border-radius: 15px; transition: transform 0.3s; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-                        .project-card:hover { transform: translateY(-5px); }
-                        .progress { height: 12px; border-radius: 10px; background-color: #e9ecef; overflow: visible; }
-                        .progress-bar { border-radius: 10px; position: relative; }
-                        .progress-label { position: absolute; right: 0; top: -25px; font-weight: bold; font-size: 12px; color: #333; }
+                        /* Searchable dropdown styles */
+                        .searchable-dropdown {
+                            position: relative;
+                        }
+                        .searchable-dropdown .search-input {
+                            width: 100%;
+                            padding: 0.375rem 0.75rem;
+                            padding-right: 30px;
+                            font-size: 0.875rem;
+                            line-height: 1.5;
+                            color: #495057;
+                            background-color: #fff;
+                            border: 1px solid #ced4da;
+                            border-radius: 0.2rem;
+                            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+                            height: calc(1.5em + 0.5rem + 2px);
+                        }
+                        .searchable-dropdown .search-input:focus {
+                            border-color: #4e73df;
+                            box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+                            outline: none;
+                        }
+                        .searchable-dropdown .search-input::placeholder {
+                            color: #adb5bd;
+                        }
+                        .searchable-dropdown .dropdown-toggle-icon {
+                            position: absolute;
+                            right: 10px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            pointer-events: none;
+                            color: #6c757d;
+                            font-size: 0.7rem;
+                            transition: transform 0.2s;
+                        }
+                        .searchable-dropdown .dropdown-toggle-icon.open {
+                            transform: translateY(-50%) rotate(180deg);
+                        }
+                        .searchable-dropdown .dropdown-list {
+                            display: none;
+                            position: absolute;
+                            top: 100%;
+                            left: 0;
+                            right: 0;
+                            z-index: 1050;
+                            max-height: 250px;
+                            overflow-y: auto;
+                            background: #fff;
+                            border: 1px solid #ced4da;
+                            border-top: none;
+                            border-radius: 0 0 0.2rem 0.2rem;
+                            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                        }
+                        .searchable-dropdown .dropdown-list.show {
+                            display: block;
+                        }
+                        .searchable-dropdown .dropdown-item {
+                            padding: 0.4rem 0.75rem;
+                            font-size: 0.875rem;
+                            color: #495057;
+                            cursor: pointer;
+                            border-bottom: 1px solid #f1f1f1;
+                            transition: background-color 0.15s;
+                            white-space: nowrap;
+                            overflow: hidden;
+                            text-overflow: ellipsis;
+                        }
+                        .searchable-dropdown .dropdown-item:last-child {
+                            border-bottom: none;
+                        }
+                        .searchable-dropdown .dropdown-item:hover,
+                        .searchable-dropdown .dropdown-item.highlighted {
+                            background-color: #e8f0fe;
+                            color: #1a73e8;
+                        }
+                        .searchable-dropdown .dropdown-item.selected {
+                            background-color: #4e73df;
+                            color: #fff;
+                        }
+                        .searchable-dropdown .dropdown-item.no-results {
+                            color: #adb5bd;
+                            font-style: italic;
+                            cursor: default;
+                            text-align: center;
+                        }
+                        .searchable-dropdown .dropdown-item.no-results:hover {
+                            background-color: transparent;
+                            color: #adb5bd;
+                        }
+                        .searchable-dropdown .clear-btn {
+                            position: absolute;
+                            right: 28px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            background: none;
+                            border: none;
+                            color: #adb5bd;
+                            cursor: pointer;
+                            font-size: 0.85rem;
+                            padding: 2px 4px;
+                            line-height: 1;
+                            display: none;
+                        }
+                        .searchable-dropdown .clear-btn:hover {
+                            color: #dc3545;
+                        }
+                        .searchable-dropdown .clear-btn.show {
+                            display: block;
+                        }
+                        /* Scrollbar styling */
+                        .searchable-dropdown .dropdown-list::-webkit-scrollbar {
+                            width: 6px;
+                        }
+                        .searchable-dropdown .dropdown-list::-webkit-scrollbar-track {
+                            background: #f1f1f1;
+                            border-radius: 3px;
+                        }
+                        .searchable-dropdown .dropdown-list::-webkit-scrollbar-thumb {
+                            background: #c1c1c1;
+                            border-radius: 3px;
+                        }
+                        .searchable-dropdown .dropdown-list::-webkit-scrollbar-thumb:hover {
+                            background: #a1a1a1;
+                        }
                     </style>
-
-                    <div class="container-fluid mt-4">
-                        <div class="row mb-4 align-items-center bg-white p-3 rounded shadow-sm">
-                            <div class="col-md-3">
-                                <label class="small text-muted">Chọn Tháng</label>
-                                <select class="form-select" id="filterMonth">
-                                    <?php for($m=1; $m<=12; $m++): ?>
-                                        <option value="<?= $m ?>" <?= $selected_month == $m ? 'selected' : '' ?>>Tháng <?= $m ?></option>
-                                    <?php endfor; ?>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <label class="small text-muted">Chọn Năm</label>
-                                <input type="number" class="form-control" id="filterYear" value="<?= $selected_year ?>">
-                            </div>
-                            <div class="col-md-2 mt-4">
-                                <button class="btn btn-primary w-100" onclick="applyFilter()">
-                                    <i class="fas fa-filter"></i> Lọc dữ liệu
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <?php if (mysqli_num_rows($result_projects) > 0): ?>
-                                <?php while($row = mysqli_fetch_assoc($result_projects)): 
-                                    $progress = round($row['tien_do_tb']);
-                                    $color = ($progress < 50) ? 'bg-danger' : (($progress < 80) ? 'bg-warning' : 'bg-success');
-                                ?>
-                                    <div class="col-md-4 mb-4">
-                                        <div class="card project-card h-100 p-3" onclick="showJobDetails('<?= $row['DA_MA'] ?>', '<?= $selected_month ?>', '<?= $selected_year ?>')">
-                                            <div class="d-flex justify-content-between align-items-start mb-3">
-                                                <div>
-                                                    <span class="badge bg-light text-primary mb-2">ID: <?= $row['DA_MA'] ?></span>
-                                                    <h6 class="card-title fw-bold text-dark"><?= $row['DA_TEN'] ?></h6>
-                                                </div>
-                                                <div class="text-end">
-                                                    <small class="text-muted d-block"><?= $row['so_cong_viec'] ?> CV</small>
-                                                </div>
-                                            </div>
-                                            
-                                            <div class="mt-4">
-                                                <div class="d-flex justify-content-between mb-1">
-                                                    <small>Tiến độ tổng thể</small>
-                                                    <small class="fw-bold"><?= $progress ?>%</small>
-                                                </div>
-                                                <div class="progress">
-                                                    <div class="progress-bar <?= $color ?> progress-bar-striped progress-bar-animated" 
-                                                        style="width: <?= $progress ?>%"></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                <?php endwhile; ?>
-                            <?php else: ?>
-                                <div class="col-12 text-center py-5">
-                                    <img src="https://cdn-icons-png.flaticon.com/512/7486/7486744.png" width="80" class="opacity-50 mb-3">
-                                    <p class="text-muted">Không có công việc nào bắt đầu trong tháng <?= $selected_month ?>/<?= $selected_year ?></p>
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            <div class="card chart-filter-card">
+                                <div class="card-header d-flex align-items-center">
+                                    <h5 class="mb-0"><i class="fas fa-filter"></i> Lọc biểu đồ theo dự án</h5>
                                 </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <?php if ($total_pages > 1): ?>
-                        <nav class="mt-4">
-                            <ul class="pagination justify-content-center">
-                                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                                    <a class="page-link shadow-sm" href="?p_page=<?= $page-1 ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Trước</a>
-                                </li>
-                                <?php for($i=1; $i<=$total_pages; $i++): ?>
-                                    <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-                                        <a class="page-link shadow-sm" href="?p_page=<?= $i ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>"><?= $i ?></a>
-                                    </li>
-                                <?php endfor; ?>
-                                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                                    <a class="page-link shadow-sm" href="?p_page=<?= $page+1 ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>">Sau</a>
-                                </li>
-                            </ul>
-                        </nav>
-                        <?php endif; ?>
-
-                        <div class="modal fade" id="modalDetails" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-lg modal-dialog-centered">
-                                <div class="modal-content">
-                                    <div class="modal-header bg-primary text-white">
-                                        <h5 class="modal-title" id="modalTitle">Chi tiết công việc</h5>
-                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                    </div>
-                                    <div class="modal-body" id="modalBodyDetails">
-                                        <div class="text-center p-5">
-                                            <div class="spinner-border text-primary" role="status"></div>
-                                            <p class="mt-2">Đang tải dữ liệu...</p>
+                                <div class="card-body py-2">
+                                    <div class="row align-items-end">
+                                        <div class="col-12 col-md-5 mb-2 mb-md-0">
+                                            <label class="small text-muted fw-bold mb-1">Chọn Dự Án</label>
+                                            <!-- Hidden select to keep existing logic working -->
+                                            <select class="form-control form-control-sm" id="projectFilter2" style="display:none;">
+                                                <option value="">-- Tất cả dự án --</option>
+                                                <?php if (!empty($projects)): ?>
+                                                    <?php foreach ($projects as $pj): ?>
+                                                        <option value="<?php echo $pj['DA_MA']; ?>" 
+                                                            data-phongban="<?php echo isset($pj['PB_MA']) ? $pj['PB_MA'] : ''; ?>"
+                                                            data-nam="<?php echo isset($pj['DA_NGAYBATDAU']) ? date('Y', strtotime($pj['DA_NGAYBATDAU'])) : date('Y'); ?>">
+                                                            <?php echo $pj['DA_TEN']; ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                <?php endif; ?>
+                                            </select>
+                                            <!-- Searchable dropdown UI -->
+                                            <div class="searchable-dropdown" id="searchableProjectDropdown">
+                                                <input type="text" class="search-input" id="projectSearchInput" 
+                                                       placeholder="Tìm kiếm hoặc chọn dự án..." autocomplete="off">
+                                                <button type="button" class="clear-btn" id="projectSearchClear" title="Xóa">&times;</button>
+                                                <i class="fas fa-caret-down dropdown-toggle-icon" id="projectDropdownIcon"></i>
+                                                <div class="dropdown-list" id="projectDropdownList">
+                                                    <!-- Items will be populated by JS -->
+                                                </div>
+                                            </div>
                                         </div>
+                                    
+                                        <div class="col-12 col-md-4 mb-2 mb-md-0 d-flex gap-2 align-items-end">
+                                            <button type="button" class="btn btn-sm btn-primary" id="applyStatusFilter2">
+                                                <i class="fas fa-search"></i> Lọc
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-secondary" id="resetStatusFilter2" title="Đặt lại">
+                                                <i class="fas fa-undo"></i> Đặt lại
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="statusFilterInfo2" class="alert alert-info alert-sm mt-2 mb-0" style="display:none;">
+                                        <span id="statusFilterInfoText2"></span>
+                                        <button type="button" class="close" onclick="$('#statusFilterInfo2').hide();">&times;</button>
                                     </div>
                                 </div>
                             </div>
@@ -634,33 +864,310 @@ $result_projects = mysqli_query($conn, $sql_main);
                     </div>
 
                     <script>
-                    function applyFilter() {
-                        const month = document.getElementById('filterMonth').value;
-                        const year = document.getElementById('filterYear').value;
-                        // Chuyển hướng trang và giữ các tham số
-                        window.location.href = `?month=${month}&year=${year}&p_page=1`;
-                    }
-
-                    function showJobDetails(da_ma, month, year) {
-                        // Hiện modal
-                        var myModal = new bootstrap.Modal(document.getElementById('modalDetails'));
-                        myModal.show();
+                    // Searchable dropdown for project filter
+                    (function() {
+                        var select = document.getElementById('projectFilter2');
+                        var searchInput = document.getElementById('projectSearchInput');
+                        var dropdownList = document.getElementById('projectDropdownList');
+                        var clearBtn = document.getElementById('projectSearchClear');
+                        var dropdownIcon = document.getElementById('projectDropdownIcon');
+                        var container = document.getElementById('searchableProjectDropdown');
+                        var highlightedIndex = -1;
                         
-                        // Đổi tiêu đề modal
-                        document.getElementById('modalTitle').innerText = 'Công việc dự án: ' + da_ma;
-
-                        // Gửi AJAX lấy dữ liệu
-                        fetch(`chitietduan.php?da_ma=${da_ma}&month=${month}&year=${year}`)
-                            .then(response => response.text())
-                            .then(data => {
-                                document.getElementById('modalBodyDetails').innerHTML = data;
-                            })
-                            .catch(error => {
-                                document.getElementById('modalBodyDetails').innerHTML = '<p class="text-danger">Lỗi tải dữ liệu!</p>';
+                        // Build dropdown items from select options
+                        function buildDropdownItems() {
+                            dropdownList.innerHTML = '';
+                            var options = select.querySelectorAll('option');
+                            var visibleCount = 0;
+                            
+                            options.forEach(function(opt) {
+                                // Skip hidden options (filtered by filterProjectDropdown)
+                                if (opt.style.display === 'none' || opt.hidden) return;
+                                
+                                var item = document.createElement('div');
+                                item.className = 'dropdown-item';
+                                item.setAttribute('data-value', opt.value);
+                                item.textContent = opt.textContent.trim();
+                                
+                                if (opt.value === select.value) {
+                                    item.classList.add('selected');
+                                }
+                                
+                                item.addEventListener('click', function(e) {
+                                    e.stopPropagation();
+                                    selectItem(this.getAttribute('data-value'), this.textContent);
+                                });
+                                
+                                dropdownList.appendChild(item);
+                                visibleCount++;
                             });
-                    }
+                            
+                            return visibleCount;
+                        }
+                        
+                        // Filter dropdown items based on search keyword
+                        function filterDropdownItems(keyword) {
+                            var items = dropdownList.querySelectorAll('.dropdown-item');
+                            var normalizedKeyword = removeAccents(keyword.toLowerCase().trim());
+                            var hasVisible = false;
+                            highlightedIndex = -1;
+                            
+                            // Remove old no-results message
+                            var noResults = dropdownList.querySelector('.no-results');
+                            if (noResults) noResults.remove();
+                            
+                            items.forEach(function(item) {
+                                var text = removeAccents(item.textContent.toLowerCase());
+                                // Support multiple keyword search (space-separated)
+                                var keywords = normalizedKeyword.split(/\s+/).filter(function(k) { return k.length > 0; });
+                                var match = keywords.length === 0 || keywords.every(function(k) {
+                                    return text.indexOf(k) !== -1;
+                                });
+                                
+                                if (match) {
+                                    item.style.display = '';
+                                    hasVisible = true;
+                                } else {
+                                    item.style.display = 'none';
+                                }
+                                item.classList.remove('highlighted');
+                            });
+                            
+                            if (!hasVisible) {
+                                var noResultsItem = document.createElement('div');
+                                noResultsItem.className = 'dropdown-item no-results';
+                                noResultsItem.textContent = 'Không tìm thấy dự án phù hợp';
+                                dropdownList.appendChild(noResultsItem);
+                            }
+                        }
+                        
+                        // Remove Vietnamese accents for better search
+                        function removeAccents(str) {
+                            return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                                      .replace(/đ/g, 'd').replace(/Đ/g, 'D');
+                        }
+                        
+                        // Select an item
+                        function selectItem(value, text) {
+                            select.value = value;
+                            searchInput.value = (value === '') ? '' : text.trim();
+                            closeDropdown();
+                            updateClearBtn();
+                            
+                            // Mark selected item
+                            dropdownList.querySelectorAll('.dropdown-item').forEach(function(item) {
+                                item.classList.remove('selected');
+                                if (item.getAttribute('data-value') === value) {
+                                    item.classList.add('selected');
+                                }
+                            });
+                            
+                            // Trigger change event on the hidden select
+                            var event = new Event('change', { bubbles: true });
+                            select.dispatchEvent(event);
+                            if (typeof $ !== 'undefined') {
+                                $(select).trigger('change');
+                            }
+                        }
+                        
+                        function openDropdown() {
+                            buildDropdownItems();
+                            filterDropdownItems(searchInput.value);
+                            dropdownList.classList.add('show');
+                            dropdownIcon.classList.add('open');
+                        }
+                        
+                        function closeDropdown() {
+                            dropdownList.classList.remove('show');
+                            dropdownIcon.classList.remove('open');
+                            highlightedIndex = -1;
+                        }
+                        
+                        function updateClearBtn() {
+                            if (searchInput.value.length > 0) {
+                                clearBtn.classList.add('show');
+                            } else {
+                                clearBtn.classList.remove('show');
+                            }
+                        }
+                        
+                        // Keyboard navigation
+                        function navigateDropdown(direction) {
+                            var visibleItems = Array.from(dropdownList.querySelectorAll('.dropdown-item:not(.no-results)'))
+                                .filter(function(item) { return item.style.display !== 'none'; });
+                            
+                            if (visibleItems.length === 0) return;
+                            
+                            // Remove current highlight
+                            visibleItems.forEach(function(item) { item.classList.remove('highlighted'); });
+                            
+                            highlightedIndex += direction;
+                            if (highlightedIndex < 0) highlightedIndex = visibleItems.length - 1;
+                            if (highlightedIndex >= visibleItems.length) highlightedIndex = 0;
+                            
+                            visibleItems[highlightedIndex].classList.add('highlighted');
+                            visibleItems[highlightedIndex].scrollIntoView({ block: 'nearest' });
+                        }
+                        
+                        // Event listeners
+                        searchInput.addEventListener('focus', function() {
+                            openDropdown();
+                        });
+                        
+                        searchInput.addEventListener('input', function() {
+                            if (!dropdownList.classList.contains('show')) {
+                                openDropdown();
+                            } else {
+                                filterDropdownItems(this.value);
+                            }
+                            updateClearBtn();
+                        });
+                        
+                        searchInput.addEventListener('keydown', function(e) {
+                            if (e.key === 'ArrowDown') {
+                                e.preventDefault();
+                                if (!dropdownList.classList.contains('show')) openDropdown();
+                                navigateDropdown(1);
+                            } else if (e.key === 'ArrowUp') {
+                                e.preventDefault();
+                                navigateDropdown(-1);
+                            } else if (e.key === 'Enter') {
+                                e.preventDefault();
+                                var visibleItems = Array.from(dropdownList.querySelectorAll('.dropdown-item:not(.no-results)'))
+                                    .filter(function(item) { return item.style.display !== 'none'; });
+                                if (highlightedIndex >= 0 && highlightedIndex < visibleItems.length) {
+                                    var item = visibleItems[highlightedIndex];
+                                    selectItem(item.getAttribute('data-value'), item.textContent);
+                                } else if (visibleItems.length === 1) {
+                                    // Auto-select if only one result
+                                    selectItem(visibleItems[0].getAttribute('data-value'), visibleItems[0].textContent);
+                                }
+                            } else if (e.key === 'Escape') {
+                                closeDropdown();
+                                searchInput.blur();
+                            }
+                        });
+                        
+                        clearBtn.addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            selectItem('', '-- Tất cả dự án --');
+                            searchInput.value = '';
+                            updateClearBtn();
+                            searchInput.focus();
+                        });
+                        
+                        // Close dropdown when clicking outside
+                        document.addEventListener('click', function(e) {
+                            if (!container.contains(e.target)) {
+                                closeDropdown();
+                                // If no valid selection, reset to show the selected option text
+                                if (select.value && searchInput.value === '') {
+                                    var selectedOpt = select.options[select.selectedIndex];
+                                    if (selectedOpt && selectedOpt.value) {
+                                        searchInput.value = selectedOpt.textContent.trim();
+                                        updateClearBtn();
+                                    }
+                                }
+                            }
+                        });
+                        
+                        // Sync when the hidden select changes externally (e.g. from reset button)
+                        select.addEventListener('change', function() {
+                            var selectedOpt = select.options[select.selectedIndex];
+                            if (selectedOpt) {
+                                searchInput.value = selectedOpt.value ? selectedOpt.textContent.trim() : '';
+                                updateClearBtn();
+                            }
+                        });
+                        
+                        // Expose a refresh function for when filterProjectDropdown runs
+                        window.refreshSearchableDropdown = function() {
+                            // Update search input to reflect current select state
+                            var selectedOpt = select.options[select.selectedIndex];
+                            if (selectedOpt) {
+                                searchInput.value = selectedOpt.value ? selectedOpt.textContent.trim() : '';
+                            } else {
+                                searchInput.value = '';
+                            }
+                            updateClearBtn();
+                            // Rebuild items if dropdown is open
+                            if (dropdownList.classList.contains('show')) {
+                                buildDropdownItems();
+                                filterDropdownItems(searchInput.value);
+                            }
+                        };
+                        
+                        // Initialize
+                        updateClearBtn();
+                    })();
                     </script>
-                    
+
+                    <script>
+                    // Danh sách mã dự án đã lọc theo tháng/năm (từ các card ở trên)
+                    var filteredProjectIds = <?php echo json_encode(array_map('strval', $filteredDaMa)); ?>;
+                    // Kiểm tra xem có bộ lọc nào đang hoạt động không
+                    var hasTopFilter = <?php echo (!empty($selected_pb) || isset($_GET['month']) || isset($_GET['year']) || isset($_GET['pb_ma'])) ? 'true' : 'false'; ?>;
+
+                    function filterProjectDropdown() {
+                        var phongbanId = $('#phongbanFilter').length ? $('#phongbanFilter').val() : '';
+                        
+                        // Bước 1: Hiển thị tất cả trước
+                        $('#projectFilter2 option').show();
+                        
+                        // Bước 2: Nếu có chọn phòng ban, lọc theo phòng ban
+                        if (phongbanId && phongbanId !== '') {
+                            $('#projectFilter2 option').each(function() {
+                                var $opt = $(this);
+                                if ($opt.val() === '') return; // Giữ option mặc định
+                                var optPB = ($opt.attr('data-phongban') || '').trim();
+                                if (optPB !== phongbanId.trim()) {
+                                    $opt.hide();
+                                }
+                            });
+                        }
+                        
+                        // Bước 3: Nếu có bộ lọc tháng/năm đang hoạt động, chỉ hiển thị dự án có công việc trong tháng/năm đó
+                        if (hasTopFilter && filteredProjectIds.length > 0) {
+                            $('#projectFilter2 option').each(function() {
+                                var $opt = $(this);
+                                if ($opt.val() === '') return;
+                                if ($opt.is(':visible') && filteredProjectIds.indexOf(String($opt.val())) === -1) {
+                                    $opt.hide();
+                                }
+                            });
+                        }
+                        
+                        // Reset selection nếu option đang chọn bị ẩn
+                        var $selected = $('#projectFilter2 option:selected');
+                        if ($selected.length && !$selected.is(':visible') && $selected.val() !== '') {
+                            $('#projectFilter2').val('');
+                        }
+                        
+                        // Sync searchable dropdown UI
+                        if (typeof window.refreshSearchableDropdown === 'function') {
+                            window.refreshSearchableDropdown();
+                        }
+                    }
+
+                    $(document).ready(function() {
+                        // Lọc dropdown dự án khi trang tải xong
+                        filterProjectDropdown();
+                        
+                        // Khi thay đổi phòng ban ở bộ lọc trên, cập nhật dropdown dự án
+                        if ($('#phongbanFilter').length) {
+                            $('#phongbanFilter').on('change.projectDropdown', function() {
+                                filterProjectDropdown();
+                                // Reset lựa chọn dự án
+                                $('#projectFilter2').val('').trigger('change');
+                                // Sync searchable dropdown
+                                if (typeof window.refreshSearchableDropdown === 'function') {
+                                    window.refreshSearchableDropdown();
+                                }
+                            });
+                        }
+                    });
+                    </script>
+
                     <div class="row">
                         <div class="mb-3 w-100">
                             <div class="row">
@@ -707,84 +1214,153 @@ $result_projects = mysqli_query($conn, $sql_main);
                         </div>
                     </div>
                     
-                    <div class="row">
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="1"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #4b9261">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="totalTasksCount" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-tasks" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Số Công Việc trong Dự Án</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="2"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #18dcff">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="pendingTasksCount" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-clock" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Chưa tiếp nhận</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="3"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #5190d2">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="inProgressTasksCount" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-spinner" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Đang Tiến Hành</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="4"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #32ff7e;">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="completedTasksCount" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-check-circle" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Đã Hoàn Thành</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="5"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #d63031;">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="overdueTasksCount" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-exclamation-triangle" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Công Việc Trễ Tiến Độ</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="col-md-4 col-sm-6 col-xs-12">
-                            <div class="card card-outline card-success itemDashboard" data-type="6"
-                                style="border-left: 3px solid black; border-radius: 5px; background-color: #f1c40f;">
-                                <div>
-                                    <h2 style="display: flex; align-items: center; justify-content: center; position: relative;">
-                                        <span id="totalDisbursed" style="flex: 1; text-align: center;">0</span>
-                                        <i class="fas fa-donate" style="font-size: 25px; margin-right: 10px; position: absolute; right: 0; top: 50%; transform: translateY(-50%);"></i>
-                                    </h2>
-                                    <p>Đã giải ngân</p>
-                                </div>
-                            </div>
-                        </div>
+                    <style>
+                        .stat-card-modern {
+                            border: none;
+                            border-radius: 16px;
+                            padding: 24px 20px;
+                            color: #fff;
+                            position: relative;
+                            overflow: hidden;
+                            transition: transform 0.3s ease, box-shadow 0.3s ease;
+                            cursor: pointer;
+                            min-height: 130px;
+                            display: flex;
+                            flex-direction: column;
+                            justify-content: center;
+                        }
+                        .stat-card-modern:hover {
+                            transform: translateY(-6px);
+                            box-shadow: 0 12px 32px rgba(0,0,0,0.18) !important;
+                        }
+                        .stat-card-modern::before {
+                            content: '';
+                            position: absolute;
+                            top: -30px;
+                            right: -30px;
+                            width: 120px;
+                            height: 120px;
+                            border-radius: 50%;
+                            background: rgba(255,255,255,0.1);
+                        }
+                        .stat-card-modern::after {
+                            content: '';
+                            position: absolute;
+                            bottom: -20px;
+                            right: 30px;
+                            width: 70px;
+                            height: 70px;
+                            border-radius: 50%;
+                            background: rgba(255,255,255,0.06);
+                        }
+                        .stat-card-modern .stat-icon {
+                            position: absolute;
+                            right: 20px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            width: 52px;
+                            height: 52px;
+                            border-radius: 14px;
+                            background: rgba(255,255,255,0.2);
+                            backdrop-filter: blur(8px);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 22px;
+                            color: #fff;
+                            z-index: 1;
+                        }
+                        .stat-card-modern .stat-number {
+                            font-size: 2.2rem;
+                            font-weight: 800;
+                            line-height: 1;
+                            margin-bottom: 6px;
+                            letter-spacing: -0.5px;
+                            text-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        }
+                        .stat-card-modern .stat-label {
+                            font-size: 0.82rem;
+                            font-weight: 500;
+                            opacity: 0.9;
+                            letter-spacing: 0.3px;
+                            text-transform: none;
+                            margin: 0;
+                        }
+                        /* Card 1 - Total tasks: Deep teal gradient */
+                        .stat-card-total {
+                            background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+                            box-shadow: 0 6px 20px rgba(15, 118, 110, 0.35);
+                        }
+                        /* Card 2 - Pending: Vivid indigo gradient */
+                        .stat-card-pending {
+                            background: linear-gradient(135deg, #4f46e5 0%, #818cf8 100%);
+                            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
+                        }
+                        /* Card 3 - In progress: Ocean blue gradient */
+                        .stat-card-inprogress {
+                            background: linear-gradient(135deg, #1d4ed8 0%, #60a5fa 100%);
+                            box-shadow: 0 6px 20px rgba(29, 78, 216, 0.35);
+                        }
+                        /* Card 4 - Completed: Emerald gradient */
+                        .stat-card-completed {
+                            background: linear-gradient(135deg, #059669 0%, #34d399 100%);
+                            box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35);
+                        }
+                        /* Card 5 - Overdue: Rose-red gradient */
+                        .stat-card-overdue {
+                            background: linear-gradient(135deg, #be123c 0%, #fb7185 100%);
+                            box-shadow: 0 6px 20px rgba(190, 18, 60, 0.35);
+                        }
+                        /* Card 6 - Disbursed: Warm amber gradient */
+                        .stat-card-disbursed {
+                            background: linear-gradient(135deg, #d97706 0%, #fbbf24 100%);
+                            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
+                        }
+                    </style>
 
+                    <div class="row" style="row-gap: 16px;">
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-total itemDashboard" data-type="1">
+                                <div class="stat-icon"><i class="fas fa-tasks"></i></div>
+                                <div class="stat-number" id="totalTasksCount">0</div>
+                                <p class="stat-label">Số Công Việc trong Dự Án</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-pending itemDashboard" data-type="2">
+                                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                                <div class="stat-number" id="pendingTasksCount">0</div>
+                                <p class="stat-label">Chưa tiếp nhận</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-inprogress itemDashboard" data-type="3">
+                                <div class="stat-icon"><i class="fas fa-spinner"></i></div>
+                                <div class="stat-number" id="inProgressTasksCount">0</div>
+                                <p class="stat-label">Đang Tiến Hành</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-completed itemDashboard" data-type="4">
+                                <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                                <div class="stat-number" id="completedTasksCount">0</div>
+                                <p class="stat-label">Đã Hoàn Thành</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-overdue itemDashboard" data-type="5">
+                                <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                                <div class="stat-number" id="overdueTasksCount">0</div>
+                                <p class="stat-label">Công Việc Trễ Tiến Độ</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-sm-6 col-xs-12">
+                            <div class="stat-card-modern stat-card-disbursed itemDashboard" data-type="6">
+                                <div class="stat-icon"><i class="fas fa-donate"></i></div>
+                                <div class="stat-number" id="totalDisbursed">0</div>
+                                <p class="stat-label">Đã giải ngân</p>
+                            </div>
+                        </div>
                     </div>
 
                     <?php
@@ -1681,7 +2257,7 @@ window.showModal = function(type = 1) {
         url += '&pb_ma=' + encodeURIComponent(phongbanId);
     }
     
-    // fetch(url, {
+     fetch(url, {
             method: 'GET',
             headers: {
                 'X-Requested-With': 'XMLHttpRequest'
@@ -2978,22 +3554,9 @@ $(document).ready(function() {
     // Xử lý sự kiện khi chọn phòng ban
     if ($('#phongbanFilter').length) {
         $('#phongbanFilter').on('change', function() {
-            var phongbanId = $(this).val();
-            var year = $('#yearFilter').val();
-            
-            // Ẩn tất cả các option trong dropdown dự án
-            $('#projectFilter2 option').hide();
-            
-            // Hiển thị option mặc định và các option thuộc phòng ban đã chọn
-            if (phongbanId === '') {
-                // Nếu chọn "Tất cả phòng ban" thì hiển thị tất cả
-                $('#projectFilter2 option').show();
-            } else {
-                // Hiển thị option mặc định
-                $('#projectFilter2 option[value=""]').show();
-                // Hiển thị các option thuộc phòng ban đã chọn
-                $('#projectFilter2 option[data-phongban="' + phongbanId + '"][data-nam="' + year + '"]').show();
-
+            // Lọc dropdown dự án theo phòng ban (dùng hàm chung)
+            if (typeof filterProjectDropdown === 'function') {
+                filterProjectDropdown();
             }
             
             // Đặt lại giá trị chọn về mặc định
