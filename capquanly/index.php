@@ -467,6 +467,19 @@ $sql_main = "SELECT d.DA_MA, d.DA_TEN,
              GROUP BY d.DA_MA
              LIMIT $limit OFFSET $offset";
 $result_projects = mysqli_query($conn, $sql_main);
+
+// 5. Lấy TẤT CẢ mã dự án phù hợp bộ lọc (không giới hạn phân trang) để dropdown hiển thị đầy đủ
+$sql_all_filtered = "SELECT DISTINCT d.DA_MA
+             FROM duan d
+             JOIN danhsachcongviec cv ON d.DA_MA = cv.DA_MA
+             $where_clause";
+$res_all_filtered = mysqli_query($conn, $sql_all_filtered);
+$filteredDaMa = [];
+if ($res_all_filtered) {
+    while ($row_f = mysqli_fetch_assoc($res_all_filtered)) {
+        $filteredDaMa[] = $row_f['DA_MA'];
+    }
+}
 ?>
 
 <body>
@@ -550,11 +563,10 @@ $result_projects = mysqli_query($conn, $sql_main);
                 .progress-bar { border-radius: 10px; position: relative; }
             </style>
 
-            <?php $filteredDaMa = []; ?>
+
             <div class="row">
                 <?php if (isset($result_projects) && mysqli_num_rows($result_projects) > 0): ?>
                     <?php while($row = mysqli_fetch_assoc($result_projects)): 
-                        $filteredDaMa[] = $row['DA_MA'];
                         $progress = round($row['tien_do_tb']);
                         $color = 'bg-primary';
                     ?>
