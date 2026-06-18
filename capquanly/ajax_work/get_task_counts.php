@@ -1,18 +1,4 @@
 <?php
-// Đảm bảo không có output nào trước khi gửi header
-if (headers_sent($filename, $linenum)) {
-    die("Lỗi: Header đã được gửi từ $filename dòng $linenum");
-}
-
-// Bật báo lỗi
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Thêm dòng này để kiểm tra xem file có được gọi trực tiếp không
-if (!defined('IN_SCRIPT')) {
-    define('IN_SCRIPT', 1);
-}
-
 // Kết nối database
 require_once('../../config.php');
 
@@ -20,18 +6,6 @@ require_once('../../config.php');
 if (!isset($_SERVER['HTTP_X_REQUESTED_WITH']) || strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) != 'xmlhttprequest') {
     die(json_encode(['status' => 'error', 'message' => 'Truy cập không hợp lệ']));
 }
-
-// Đảm bảo không có output nào trước khi gửi header
-if (headers_sent($filename, $linenum)) {
-    die("Lỗi: Header đã được gửi từ $filename dòng $linenum");
-}
-
-// Bật báo lỗi
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
-// Kết nối database
-require_once('../../config.php');
 
 // Lấy project_id từ request nếu có
 $projectId = isset($_GET['project_id']) ? intval($_GET['project_id']) : null;
@@ -104,24 +78,39 @@ if (!$projectId) {
     }
 }
 
+}
+
+// Khởi tạo mảng kết quả TRƯỜC khi kiểm tra canView
+$response = [
+    'status' => 'success',
+    'data'   => [
+        'total'       => 0,
+        'pending'     => 0,
+        'in_progress' => 0,
+        'completed'   => 0,
+        'overdue'     => 0,
+        'disbursed'   => 0
+    ]
+];
+
 if ($projectId) {
     // Kiểm tra quyền truy cập dự án cụ thể
     $canView = true;
     if (!$isAdmin) {
         if ($isManager) {
             // Quản lý: theo phòng ban hoặc của bản thân
-            $sqlCheck = "SELECT 1 FROM duan da WHERE da.DA_MA = ? AND (\n"
-                . " da.DA_NGUOIPHUTRACH = ?\n"
-                . " OR EXISTS (SELECT 1 FROM duan_thanhvien dt WHERE dt.DA_MA = da.DA_MA AND dt.TV_MA = ?)\n"
-                . " OR (SELECT PB_MA FROM thanhvien WHERE TV_MA = da.DA_NGUOIPHUTRACH LIMIT 1) = ?\n"
-                . " OR EXISTS (SELECT 1 FROM duan_thanhvien dt JOIN thanhvien tv ON tv.TV_MA = dt.TV_MA WHERE dt.DA_MA = da.DA_MA AND tv.PB_MA = ?)\n"
-                . ") LIMIT 1";
+            $sqlCheck = "SELECT 1 FROM duan da WHERE da.DA_MA = ? AND (
+ da.DA_NGUOIPHUTRACH = ?
+ OR EXISTS (SELECT 1 FROM duan_thanhvien dt WHERE dt.DA_MA = da.DA_MA AND dt.TV_MA = ?)
+ OR (SELECT PB_MA FROM thanhvien WHERE TV_MA = da.DA_NGUOIPHUTRACH LIMIT 1) = ?
+ OR EXISTS (SELECT 1 FROM duan_thanhvien dt JOIN thanhvien tv ON tv.TV_MA = dt.TV_MA WHERE dt.DA_MA = da.DA_MA AND tv.PB_MA = ?)
+) LIMIT 1";
             $stmtCheck = $conn->prepare($sqlCheck);
             if ($stmtCheck) {
                 $stmtCheck->bind_param('sssss', $projectId, $userCode, $userCode, $managerDept, $managerDept);
                 $stmtCheck->execute();
                 $resCheck = $stmtCheck->get_result();
-                $canView = ($resCheck && $resCheck->num_rows > 0);
+                $canView  = ($resCheck && $resCheck->num_rows > 0);
                 $stmtCheck->close();
             }
         } else {
@@ -137,38 +126,19 @@ if ($projectId) {
                 $stmtCheck->bind_param('ssss', $projectId, $userCode, $userCode, $userCode);
                 $stmtCheck->execute();
                 $resCheck = $stmtCheck->get_result();
-                $canView = ($resCheck && $resCheck->num_rows > 0);
+                $canView  = ($resCheck && $resCheck->num_rows > 0);
                 $stmtCheck->close();
             }
         }
     }
 
     if (!$canView) {
-        // Không có quyền: trả về 0
-        $response['data']['total'] = 0;
-        $response['data']['pending'] = 0;
-        $response['data']['in_progress'] = 0;
-        $response['data']['completed'] = 0;
-        $response['data']['overdue'] = 0;
-        $response['data']['disbursed'] = 0;
         echo json_encode($response, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
     $baseCondition .= " AND danhsachcongviec.DA_MA = " . $projectId;
 }
-// Khởi tạo mảng kết quả
-$response = [
-    'status' => 'success',
-    'data' => [
-        'total' => 0,
-        'pending' => 0,
-        'in_progress' => 0,
-        'completed' => 0,
-        'overdue' => 0,
-        'disbursed' => 0
-    ]
-];
 error_log("Điều kiện truy vấn: " . $baseCondition);
 
 try {
@@ -254,13 +224,15 @@ try {
                 . "WHERE dcv.dscv_trangthaihd = 1 AND dcv.DA_MA IS NULL AND YEAR(dcv.DSCV_NGAYBATDAU) <= $year AND YEAR(dcv.DSCV_NGAYKETTHUC) >= $year";
             $stmtSum = $conn->prepare($sumSql);
         } else {
-            $sumSql = "SELECT COALESCE(SUM(dcv.DSCV_GIATRIGIAINGAN), 0) AS total_disbursed\n"
-                . "FROM danhsachcongviec dcv\n"
-                . "WHERE dcv.dscv_trangthaihd = 1 AND dcv.DA_MA IS NULL AND (\n"
-                . "  dcv.DA_NGUOIPHUTRACH = ?\n";
+            $sumSql = "SELECT COALESCE(SUM(dcv.DSCV_GIATRIGIAINGAN), 0) AS total_disbursed
+                FROM danhsachcongviec dcv
+                WHERE dcv.dscv_trangthaihd = 1 AND dcv.DA_MA IS NULL
+                AND dcv.DSCV_TRANGTHAIGIAINGAN = 1
+                AND YEAR(dcv.DSCV_NGAYBATDAU) <= $year AND YEAR(dcv.DSCV_NGAYKETTHUC) >= $year
+                AND dcv.TV_MA = ?";
             $stmtSum = $conn->prepare($sumSql);
             if ($stmtSum) {
-                $stmtSum->bind_param('s', $userCode, );
+                $stmtSum->bind_param('s', $userCode);
             }
         }
         if (!$stmtSum) {

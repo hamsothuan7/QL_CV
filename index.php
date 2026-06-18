@@ -7,29 +7,63 @@ session_start();
 error_reporting(0);
 
 if (isset($_POST['submit'])) {
-    $name = mysqli_real_escape_string($conn, $_POST['name']);
-    $password = mysqli_real_escape_string($conn, $_POST['password']);
-    $encrypted_password = md5($password); // Encrypt the password using MD5
+    $name = trim($_POST['name']);
+    $password = $_POST['password'];
 
-    $sql = "SELECT * FROM thanhvien WHERE TV_MA = ? AND TV_MATKHAU = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $name, $encrypted_password);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Lấy thông tin thành viên bằng Prepared Statement dựa trên TV_MA
+    $sql = "SELECT * FROM thanhvien WHERE TV_MA = ?";
+    if ($stmt = $conn->prepare($sql)) {
+        $stmt->bind_param("s", $name);
+        $stmt->execute();
+        $result = $stmt->get_result();
 
-    if ($result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        $_SESSION['username'] = $row['TV_TEN'];
-        $_SESSION['code'] = $row['TV_MA'];
-        $_SESSION['active'] = $row['active'];
-        $_SESSION['nnd_ma'] = $row['NND_MA']; // <-- dòng mới thêm
-        header("Location: capquanly/index.php");
-        exit();
+        if ($result->num_rows > 0) {
+            $row = $result->fetch_assoc();
+            $db_password_hash = $row['TV_MATKHAU'];
+            $authenticated = false;
+            $needs_rehash = false;
+
+            // Kiểm tra mật khẩu bằng cơ chế băm an toàn hiện đại
+            if (password_verify($password, $db_password_hash)) {
+                $authenticated = true;
+            } 
+            // Nếu không khớp, kiểm tra xem có phải định dạng MD5 cũ (32 ký tự hex) hay không
+            elseif (strlen($db_password_hash) === 32 && md5($password) === $db_password_hash) {
+                $authenticated = true;
+                $needs_rehash = true; // Đánh dấu cần nâng cấp lên password_hash
+            }
+
+            if ($authenticated) {
+                // Tự động nâng cấp mật khẩu MD5 cũ sang password_hash mới
+                if ($needs_rehash) {
+                    $new_hash = password_hash($password, PASSWORD_DEFAULT);
+                    $update_sql = "UPDATE thanhvien SET TV_MATKHAU = ? WHERE TV_MA = ?";
+                    if ($update_stmt = $conn->prepare($update_sql)) {
+                        $update_stmt->bind_param("ss", $new_hash, $name);
+                        $update_stmt->execute();
+                        $update_stmt->close();
+                    }
+                }
+
+                $_SESSION['username'] = $row['TV_TEN'];
+                $_SESSION['code'] = $row['TV_MA'];
+                $_SESSION['active'] = $row['active'];
+                $_SESSION['nnd_ma'] = $row['NND_MA'];
+                
+                $stmt->close();
+                $conn->close();
+                header("Location: capquanly/index.php");
+                exit();
+            } else {
+                echo "<script>alert('Xin lỗi. Mật khẩu hoặc tên đăng nhập không đúng.')</script>";
+            }
+        } else {
+            echo "<script>alert('Xin lỗi. Mật khẩu hoặc tên đăng nhập không đúng.')</script>";
+        }
+        $stmt->close();
     } else {
-        echo "<script>alert('Xin lỗi. Mật khẩu hoặc tên đăng nhập không đúng.')</script>";
+        echo "<script>alert('Lỗi hệ thống đăng nhập. Vui lòng thử lại sau.')</script>";
     }
-
-    $stmt->close();
     $conn->close();
 }
 
@@ -42,7 +76,7 @@ if (isset($_POST['submit'])) {
     <link rel="icon" type="image/x-icon" href="/quanlycongviec/favicon.ico">
     <title>Đăng Nhập</title>
     <style>
-        <style>.content {
+        .content {
             max-width: 800px;
             margin: auto;
         }
@@ -102,7 +136,7 @@ if (isset($_POST['submit'])) {
                             </tr>
                         </table>
                         <input type="submit" value="Đăng nhập" align="center" name="submit"
-                            class="btn-primary" />
+                             class="btn-primary" />
                     </div>
                 </td>
             </tr>

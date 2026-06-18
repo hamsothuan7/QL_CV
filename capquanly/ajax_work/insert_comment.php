@@ -1,44 +1,55 @@
 <?php
 include('../../config.php');
-// Bắt đầu session
 session_start();
 
-// Kiểm tra xem session đã được tạo hay chưa và nếu tên người dùng không được lưu trữ trong session 'username', chuyển hướng người dùng đến trang đăng nhập
-if (!isset($_SESSION['username'])) {
-    header('Location: ../login/index.php');
+// Kiểm tra đăng nhập bằng đúng session key mà dự án sử dụng
+if (!isset($_SESSION['code'])) {
+    echo json_encode(['status' => false, 'message' => 'Vui lòng đăng nhập để bình luận']);
     exit;
 }
 
 try {
-    $text = trim($_POST['text']);
-    $code = $_POST['code'];
-    $userId = $_SESSION['code'] ?? "";
+    $text   = trim($_POST['text'] ?? '');
+    $code   = trim($_POST['code'] ?? '');
+    $userId = $_SESSION['code'];
 
-    $sql = "INSERT INTO binhluan_cv(TEXT, DSCV_MA, TV_MA) VALUES('$text', '$code', '$userId') ";
+    if (empty($text)) {
+        echo json_encode(['status' => false, 'message' => 'Nội dung bình luận không được để trống']);
+        return;
+    }
 
-    $result = mysqli_query($conn, $sql);
+    if (empty($code)) {
+        echo json_encode(['status' => false, 'message' => 'Mã công việc không hợp lệ']);
+        return;
+    }
+
+    $sql  = "INSERT INTO binhluan_cv(TEXT, DSCV_MA, TV_MA) VALUES(?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new Exception('Lỗi chuẩn bị câu lệnh: ' . $conn->error);
+    }
+
+    $stmt->bind_param('sss', $text, $code, $userId);
+    $result = $stmt->execute();
+    $stmt->close();
 
     if ($result) {
         echo json_encode([
-            'status' => true,
-            'data' => $code,
-            'message' => 'Bình luận dự án thành công'
+            'status'  => true,
+            'data'    => $code,
+            'message' => 'Bình luận thành công'
         ]);
-        return;
     } else {
         echo json_encode([
-            'status' => false,
-            'message' => 'Bình luận dự án thất bại'
+            'status'  => false,
+            'message' => 'Bình luận thất bại'
         ]);
-        return;
     }
 
 } catch (\Exception $e) {
     echo json_encode([
-        'status' => false,
+        'status'  => false,
         'message' => $e->getMessage()
     ]);
-    return;
 }
-
 ?>

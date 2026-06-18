@@ -60,8 +60,7 @@ function renderKanbanCard($item, $conn) {
     
     // Hidden hover actions
     $html .= '<div class="cv-card-actions">';
-    $html .= '<button class="cv-card-action-btn viewDetail" data-id="'.$id.'" title="Xem chi tiết"><i class="fal fa-eye"></i></button>';
-    $html .= '<button class="cv-card-action-btn viewDetail2" data-id="'.$id.'" title="Chỉnh sửa"><i class="fal fa-pen"></i></button>';
+    $html .= '<button class="cv-card-action-btn viewDetail" data-id="'.$id.'" title="Xem chi tiết & Chỉnh sửa"><i class="fal fa-eye"></i></button>';
     $html .= '</div>';
     
     // Card name (2-line clamp)
@@ -192,8 +191,7 @@ $kanbanInitLimit = $kanbanInitLimit ?? 30;
                             <td class="cv-table-date"><?php echo $startFormatted; ?> → <?php echo $endFormatted; ?></td>
                             <td>
                                 <div class="cv-table-actions">
-                                    <button class="cv-table-action-btn viewDetail" data-id="<?php echo $task['DSCV_MA']; ?>" title="Xem chi tiết"><i class="fal fa-eye"></i></button>
-                                    <button class="cv-table-action-btn viewDetail2" data-id="<?php echo $task['DSCV_MA']; ?>" title="Chỉnh sửa"><i class="fal fa-pen"></i></button>
+                                    <button class="cv-table-action-btn viewDetail" data-id="<?php echo $task['DSCV_MA']; ?>" title="Xem chi tiết & Chỉnh sửa"><i class="fal fa-eye"></i></button>
                                     <button class="cv-table-action-btn cv-action-danger removeProject" data-id="<?php echo $task['DSCV_MA']; ?>" title="Xóa"><i class="fal fa-trash-alt"></i></button>
                                 </div>
                             </td>

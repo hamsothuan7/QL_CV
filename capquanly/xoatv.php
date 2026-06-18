@@ -1,34 +1,55 @@
 <?php
-    include('../config.php');
-    $_ID = $_GET['id'];
+session_start();
+include('../config.php');
 
-    // Kiểm tra xem thành viên này có công việc liên quan không
-    $check_query = "SELECT * FROM danhsachcongviec WHERE TV_MA = '$_ID'";
-    $check_result = mysqli_query($conn, $check_query);
+// Kiểm tra đăng nhập và phân quyền admin
+if (!isset($_SESSION['code'])) {
+    echo "<script>alert('Vui lòng đăng nhập.'); window.location.href='../index.php';</script>";
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
 
-    if (mysqli_num_rows($check_result) > 0) {
-        // Nếu có công việc liên quan, không xóa và thông báo
+if (!isset($_GET['id']) || empty(trim($_GET['id']))) {
+    echo "<script>alert('Mã thành viên không hợp lệ.'); window.history.back();</script>";
+    exit;
+}
+
+$_ID = trim($_GET['id']);
+
+// Kiểm tra xem thành viên này có công việc liên quan không (Prepared Statement)
+$stmtCheck = $conn->prepare("SELECT COUNT(*) as cnt FROM danhsachcongviec WHERE TV_MA = ?");
+$stmtCheck->bind_param("s", $_ID);
+$stmtCheck->execute();
+$rowCheck = $stmtCheck->get_result()->fetch_assoc();
+$stmtCheck->close();
+
+if ($rowCheck['cnt'] > 0) {
+    echo "<script type='text/javascript'>";
+    echo "alert('Không thể xóa thành viên vì còn " . $rowCheck['cnt'] . " công việc liên quan.');";
+    echo "window.location.href='danhsachthanhvien.php';";
+    echo "</script>";
+} else {
+    $stmtDel = $conn->prepare("DELETE FROM thanhvien WHERE TV_MA = ?");
+    $stmtDel->bind_param("s", $_ID);
+    $result = $stmtDel->execute();
+    $affected = $stmtDel->affected_rows;
+    $stmtDel->close();
+
+    if ($result && $affected > 0) {
         echo "<script type='text/javascript'>";
-        echo "alert('Không thể xóa thành viên vì còn công việc liên quan.');";
+        echo "alert('Xóa thành viên thành công.');";
         echo "window.location.href='danhsachthanhvien.php';";
         echo "</script>";
     } else {
-        // Nếu không có công việc, tiến hành xóa
-        $query = "DELETE FROM thanhvien WHERE TV_MA = '$_ID'";
-        $result = mysqli_query($conn, $query);
-
-        if ($result > 0) {
-            echo "<script type='text/javascript'>";
-            echo "alert('Xóa thành viên thành công.');";
-            echo "window.location.href='danhsachthanhvien.php';";
-            echo "</script>";
-        } else {
-            echo "<script type='text/javascript'>";
-            echo "alert('Lỗi khi xóa thành viên: " . mysqli_error($conn) . "');";
-            echo "window.location.href='danhsachthanhvien.php';";
-            echo "</script>";
-        }
+        echo "<script type='text/javascript'>";
+        echo "alert('Lỗi khi xóa thành viên. Vui lòng thử lại.');";
+        echo "window.location.href='danhsachthanhvien.php';";
+        echo "</script>";
     }
+}
 
-    mysqli_close($conn);
+mysqli_close($conn);
 ?>

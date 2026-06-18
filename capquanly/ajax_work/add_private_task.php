@@ -106,7 +106,7 @@ try {
     $sql = "INSERT INTO danhsachcongviec 
             (DSCV_MA, DSCV_TEN, DSCV_NGAYBATDAU, DSCV_NGAYKETTHUC, 
              DSCV_TRANGTHAI, TV_MA, DA_MA, PH_MA, TIEN_DO) 
-            VALUES (?, ?, ?, ?, 1, ?, NULL, 1, 0)";
+            VALUES (?, ?, ?, ?, 1, ?, NULL, NULL, 0)";
     
     $stmt = mysqli_prepare($conn, $sql);
     if ($stmt === false) {

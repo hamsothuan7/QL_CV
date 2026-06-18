@@ -2,8 +2,14 @@
 include('../config.php');
 session_start(); // Start the session
 
-// Your existing PHP code here...
-
+if (!isset($_SESSION['code'])) {
+    header('Location: ../index.php');
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -149,15 +155,15 @@ session_start(); // Start the session
                             <!-- trang  -->
                             <ul class="pagination justify-content-end" style="margin: 10px 20px;">
                                 <li class="<?php echo (($cr_page - 1 == 0) ? 'ckeck' : '') ?>">
-                                    <a class="page-link" href="danhsachthanhvien.php?page=<?php echo $cr_page - 1 ?>" aria-label="Previous">
+                                    <a class="page-link" href="danhsachpb.php?page=<?php echo $cr_page - 1 ?>" aria-label="Previous">
                                         &laquo;
                                     </a>
                                 </li>
                                 <?php for ($i = 1; $i <= $total_page; $i++) { ?>
-                                    <li class="<?php echo (($cr_page == $i) ? 'page-item active' : '') ?>" aria-current="page"><a class="page-link" href="danhsachthanhvien.php?page=<?php echo $i ?>"><?php echo $i ?></a></li>
+                                    <li class="<?php echo (($cr_page == $i) ? 'page-item active' : '') ?>" aria-current="page"><a class="page-link" href="danhsachpb.php?page=<?php echo $i ?>"><?php echo $i ?></a></li>
                                 <?php } ?>
                                 <li class="<?php echo (($cr_page == $total_page) ? 'ckeck' : '') ?>">
-                                    <a class="page-link" href="danhsachthanhvien.php?page=<?php echo $cr_page + 1 ?>" aria-label="Next">
+                                    <a class="page-link" href="danhsachpb.php?page=<?php echo $cr_page + 1 ?>" aria-label="Next">
                                         &raquo;
                                     </a>
                                 </li>

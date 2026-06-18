@@ -2,6 +2,15 @@
 include('../config.php');
 session_start(); // Start the session
 
+if (!isset($_SESSION['code'])) {
+    header('Location: ../index.php');
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
+
 // Your existing PHP code here...
 
 ?>
@@ -28,15 +37,23 @@ session_start(); // Start the session
 <body>
 <?php
 
-// Fetch existing member data
+// Fetch existing member data bằng Prepared Statement để tránh SQL Injection
 if (isset($_GET['id'])) {
     $tvma = $_GET['id'];
-    $query = "SELECT * FROM thanhvien WHERE TV_MA = '$tvma'";
-    $result = mysqli_query($conn, $query);
-    if ($result) {
-        $member = mysqli_fetch_assoc($result);
+    $query = "SELECT * FROM thanhvien WHERE TV_MA = ?";
+    if ($stmt = $conn->prepare($query)) {
+        $stmt->bind_param("s", $tvma);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            $member = $result->fetch_assoc();
+        } else {
+            echo "Không tìm thấy thông tin thành viên!";
+            exit;
+        }
+        $stmt->close();
     } else {
-        echo "Error fetching data: " . mysqli_error($conn);
+        echo "Error fetching data: " . $conn->error;
     }
 }
 
@@ -49,59 +66,76 @@ function UpdateData()
     include('../config.php');
 
     $tvma_cu = $_GET['id']; // Mã cán bộ cũ (ban đầu)
-    $tvma_moi = $_POST['matv']; // Mã cán bộ mới (người dùng nhập)
-    $Name = $_POST['txtName'];
+    $tvma_moi = trim($_POST['matv']); // Mã cán bộ mới (người dùng nhập)
+    $Name = trim($_POST['txtName']);
     $NgaySinh = $_POST['txtNgaySinh'];
     $GioiTinh = $_POST['gioitinh'];
-    $email = $_POST['txtEmail'];
+    $email = trim($_POST['txtEmail']);
     $matkhau = $_POST['txtMatKhau'];
-    $quequan = $_POST['txtquequan'];
+    $quequan = trim($_POST['txtquequan']);
     $pb_ma = $_POST['phongban'];
     $cv_ma = $_POST['chucvu'];
     $nnd_ma = $_POST['nhomnguoidung'];
 
-    // Kiểm tra nếu người dùng đổi mã số cán bộ thì phải kiểm tra trùng
+    // Kiểm tra nếu người dùng đổi mã số cán bộ thì phải kiểm tra trùng bằng Prepared Statement
     if ($tvma_cu !== $tvma_moi) {
-        $checkQuery = "SELECT TV_MA FROM thanhvien WHERE TV_MA = '$tvma_moi'";
-        $checkResult = mysqli_query($conn, $checkQuery);
-        if (mysqli_num_rows($checkResult) > 0) {
-            echo "<script>alert('Mã số cán bộ đã tồn tại! Vui lòng chọn mã khác.'); window.history.back();</script>";
-            exit();
+        $checkQuery = "SELECT TV_MA FROM thanhvien WHERE TV_MA = ?";
+        if ($stmt = $conn->prepare($checkQuery)) {
+            $stmt->bind_param("s", $tvma_moi);
+            $stmt->execute();
+            $stmt->store_result();
+            if ($stmt->num_rows > 0) {
+                echo "<script>alert('Mã số cán bộ đã tồn tại! Vui lòng chọn mã khác.'); window.history.back();</script>";
+                $stmt->close();
+                exit();
+            }
+            $stmt->close();
         }
     }
 
-    // Xây dựng câu lệnh UPDATE, chỉ cập nhật mật khẩu nếu người dùng nhập
-    $setParts = [
-        "`TV_MA`='$tvma_moi'",
-        "`TV_TEN`='$Name'",
-        "`TV_GIOITINH`='$GioiTinh'",
-        "`TV_EMAIL`='$email'",
-        "`PB_MA`='$pb_ma'",
-        "`CV_MA`='$cv_ma'",
-        "`NND_MA`='$nnd_ma'",
-        "`TV_NGAYSINH`='$NgaySinh'",
-    ];
+    // Xây dựng câu lệnh UPDATE và danh sách các bind param
+    $sql = "UPDATE `thanhvien` 
+            SET `TV_MA` = ?, 
+                `TV_TEN` = ?, 
+                `TV_GIOITINH` = ?, 
+                `TV_EMAIL` = ?, 
+                `PB_MA` = ?, 
+                `CV_MA` = ?, 
+                `NND_MA` = ?, 
+                `TV_NGAYSINH` = ?,
+                `TV_QUEQUAN` = ?";
 
-    // Chỉ cập nhật địa chỉ nếu người dùng nhập
-    if (isset($quequan) && $quequan !== '') {
-        $setParts[] = "`TV_QUEQUAN`='$quequan'";
-    }
+    $types = "sssssssss";
+    $params = [&$tvma_moi, &$Name, &$GioiTinh, &$email, &$pb_ma, &$cv_ma, &$nnd_ma, &$NgaySinh, &$quequan];
 
+    // Chỉ cập nhật mật khẩu nếu người dùng nhập
     if (isset($matkhau) && $matkhau !== '') {
-        $hashed_password = md5($matkhau);
-        $setParts[] = "`TV_MATKHAU`='$hashed_password'";
+        $hashed_password = password_hash($matkhau, PASSWORD_DEFAULT);
+        $sql .= ", `TV_MATKHAU` = ?";
+        $types .= "s";
+        $params[] = &$hashed_password;
     }
 
-    $query = "UPDATE `thanhvien` 
-              SET " . implode(",\n                  ", $setParts) . "
-              WHERE `TV_MA`='$tvma_cu'";
+    $sql .= " WHERE `TV_MA` = ?";
+    $types .= "s";
+    $params[] = &$tvma_cu;
 
-    $result = mysqli_query($conn, $query);
+    if ($stmt = $conn->prepare($sql)) {
+        // Sử dụng call_user_func_array để bind_param linh hoạt
+        $bind_params = array_merge([$types], $params);
+        call_user_func_array([$stmt, 'bind_param'], $bind_params);
+        
+        $result = $stmt->execute();
+        $stmt->close();
 
-    if ($result) {
-        header('location:danhsachthanhvien.php');
+        if ($result) {
+            header('location:danhsachthanhvien.php');
+            exit();
+        } else {
+            echo "Lỗi khi cập nhật dữ liệu: " . $conn->error;
+        }
     } else {
-        echo "Lỗi khi cập nhật dữ liệu: " . mysqli_error($conn);
+        echo "Lỗi chuẩn bị truy vấn: " . $conn->error;
     }
 }
 

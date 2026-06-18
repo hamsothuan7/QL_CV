@@ -24,29 +24,32 @@ if (empty($username)) {
     exit();
 }
 
+// Lấy thông tin thành viên hiện tại bằng Prepared Statement
 $query = "SELECT tv.*, cv.CV_TEN, nnd.NND_TEN, pb.PB_TEN 
           FROM thanhvien tv 
           LEFT JOIN chucvu cv ON tv.CV_MA = cv.CV_MA 
           LEFT JOIN nhomnguoidung nnd ON tv.NND_MA = nnd.NND_MA 
           LEFT JOIN phongban pb ON tv.PB_MA = pb.PB_MA 
-          WHERE tv.TV_MA = '$username'";
+          WHERE tv.TV_MA = ?";
 
-$result = mysqli_query($conn, $query);
-
-if (!$result) {
-    echo "Lỗi truy vấn: " . mysqli_error($conn);
-    exit();
-}
-
-if (mysqli_num_rows($result) > 0) {
-    $member = mysqli_fetch_assoc($result);
+if ($stmt = $conn->prepare($query)) {
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    if ($result && $result->num_rows > 0) {
+        $member = $result->fetch_assoc();
+    } else {
+        echo "Không tìm thấy thông tin người dùng với username: " . htmlspecialchars($username);
+        echo "<br>Vui lòng kiểm tra lại thông tin đăng nhập.";
+        $stmt->close();
+        exit();
+    }
+    $stmt->close();
 } else {
-    echo "Không tìm thấy thông tin người dùng với username: " . htmlspecialchars($username);
-    echo "<br>Vui lòng kiểm tra lại thông tin đăng nhập.";
+    echo "Lỗi truy vấn: " . $conn->error;
     exit();
 }
 
-// (Đã loại bỏ handler cập nhật cũ để tránh trùng lặp; logic xử lý POST nằm phía dưới)
 ?>
 <!DOCTYPE html>
 <html>
@@ -94,21 +97,23 @@ if (isset($_POST['btnluu'])) {
     $old_tv_ma = $member['TV_MA']; // Lưu lại TV_MA cũ
 
     // Lấy dữ liệu từ form
-    $ten = mysqli_real_escape_string($conn, $_POST['txtName']);
-    $ngaysinh = mysqli_real_escape_string($conn, $_POST['txtNgaySinh']);
-    $gioitinh = mysqli_real_escape_string($conn, $_POST['gioitinh']);
-    $email = mysqli_real_escape_string($conn, $_POST['txtEmail']);
-    $quequan = mysqli_real_escape_string($conn, $_POST['txtquequan']);
+    $ten = trim($_POST['txtName']);
+    $ngaysinh = $_POST['txtNgaySinh'];
+    $gioitinh = $_POST['gioitinh'];
+    $email = trim($_POST['txtEmail']);
+    $quequan = trim($_POST['txtquequan']);
 
-    // Khởi tạo câu lệnh UPDATE
-    $sql_update = "UPDATE thanhvien SET TV_TEN = '$ten', TV_NGAYSINH = '$ngaysinh', TV_GIOITINH = '$gioitinh', TV_EMAIL = '$email', TV_QUEQUAN = '$quequan'";
+    // Thiết lập các trường cơ bản cho câu lệnh UPDATE
+    $sql_update = "UPDATE thanhvien SET TV_TEN = ?, TV_NGAYSINH = ?, TV_GIOITINH = ?, TV_EMAIL = ?, TV_QUEQUAN = ?";
+    $types = "sssss";
+    $params = [&$ten, &$ngaysinh, &$gioitinh, &$email, &$quequan];
 
-    // Nếu là admin, thêm các trường cần cập nhật
+    // Nếu là admin, cho phép cập nhật thông tin bổ sung và đổi TV_MA
     if ($is_admin) {
-        $new_tv_ma = mysqli_real_escape_string($conn, $_POST['tv_ma']);
-        $cv_ma = mysqli_real_escape_string($conn, isset($_POST['selectChucVu']) ? $_POST['selectChucVu'] : '');
-        $nnd_ma = mysqli_real_escape_string($conn, isset($_POST['selectNhomNguoiDung']) ? $_POST['selectNhomNguoiDung'] : '');
-        $pb_ma = mysqli_real_escape_string($conn, isset($_POST['selectPhongBan']) ? $_POST['selectPhongBan'] : '');
+        $new_tv_ma = trim($_POST['tv_ma']);
+        $cv_ma = isset($_POST['selectChucVu']) ? $_POST['selectChucVu'] : '';
+        $nnd_ma = isset($_POST['selectNhomNguoiDung']) ? $_POST['selectNhomNguoiDung'] : '';
+        $pb_ma = isset($_POST['selectPhongBan']) ? $_POST['selectPhongBan'] : '';
 
         // Validate TV_MA mới không rỗng và không trùng với tài khoản khác
         if ($new_tv_ma === '') {
@@ -116,41 +121,79 @@ if (isset($_POST['btnluu'])) {
             return;
         }
         if ($new_tv_ma !== $old_tv_ma) {
-            $chk_rs = mysqli_query($conn, "SELECT 1 FROM thanhvien WHERE TV_MA = '$new_tv_ma' LIMIT 1");
-            if ($chk_rs && mysqli_num_rows($chk_rs) > 0) {
-                echo "<script>alert('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.');</script>";
-                return;
+            $chk_sql = "SELECT 1 FROM thanhvien WHERE TV_MA = ? LIMIT 1";
+            if ($chk_stmt = $conn->prepare($chk_sql)) {
+                $chk_stmt->bind_param("s", $new_tv_ma);
+                $chk_stmt->execute();
+                $chk_stmt->store_result();
+                if ($chk_stmt->num_rows > 0) {
+                    echo "<script>alert('Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.');</script>";
+                    $chk_stmt->close();
+                    return;
+                }
+                $chk_stmt->close();
             }
         }
 
-        // Thêm các trường vào câu lệnh UPDATE
-        $sql_update .= ", TV_MA = '$new_tv_ma', CV_MA = '$cv_ma', NND_MA = '$nnd_ma', PB_MA = '$pb_ma'";
+        $sql_update .= ", TV_MA = ?, CV_MA = ?, NND_MA = ?, PB_MA = ?";
+        $types .= "ssss";
+        $params[] = &$new_tv_ma;
+        $params[] = &$cv_ma;
+        $params[] = &$nnd_ma;
+        $params[] = &$pb_ma;
     } else {
         $new_tv_ma = $old_tv_ma; // Người dùng thường không thể đổi TV_MA
     }
 
-    $sql_update .= " WHERE TV_MA = '$old_tv_ma'";
-    $result_update = mysqli_query($conn, $sql_update);
+    $sql_update .= " WHERE TV_MA = ?";
+    $types .= "s";
+    $params[] = &$old_tv_ma;
 
-    $update_success = $result_update;
+    $update_success = false;
+    if ($stmt = $conn->prepare($sql_update)) {
+        $bind_params = array_merge([$types], $params);
+        call_user_func_array([$stmt, 'bind_param'], $bind_params);
+        $update_success = $stmt->execute();
+        $stmt->close();
+    }
+
     $password_message = '';
 
     // Cập nhật session nếu TV_MA thay đổi (ứng dụng dùng $_SESSION['code'])
-    if ($is_admin && $old_tv_ma != $new_tv_ma) {
+    if ($is_admin && $old_tv_ma != $new_tv_ma && $update_success) {
         $_SESSION['code'] = $new_tv_ma;
     }
 
-    // Xử lý đổi mật khẩu
-    if (!empty($_POST['txtMatKhauCu']) && !empty($_POST['txtMatKhau']) && !empty($_POST['txtMatKhau2'])) {
-        $matkhaucu = md5($_POST['txtMatKhauCu']);
+    // Xử lý đổi mật khẩu bằng thuật toán an toàn
+    if ($update_success && !empty($_POST['txtMatKhauCu']) && !empty($_POST['txtMatKhau']) && !empty($_POST['txtMatKhau2'])) {
+        $matkhaucu = $_POST['txtMatKhauCu'];
         $matkhaumoi = $_POST['txtMatKhau'];
         $matkhaumoi2 = $_POST['txtMatKhau2'];
 
-        if ($matkhaucu == $member['TV_MATKHAU']) {
+        $db_hash = $member['TV_MATKHAU'];
+        $pwd_authenticated = false;
+
+        // So khớp mật khẩu hiện tại (Hỗ trợ cả MD5 cũ và password_hash mới)
+        if (password_verify($matkhaucu, $db_hash)) {
+            $pwd_authenticated = true;
+        } elseif (strlen($db_hash) === 32 && md5($matkhaucu) === $db_hash) {
+            $pwd_authenticated = true;
+        }
+
+        if ($pwd_authenticated) {
             if ($matkhaumoi == $matkhaumoi2) {
-                $matkhaumoi_md5 = md5($matkhaumoi);
-                mysqli_query($conn, "UPDATE thanhvien SET TV_MATKHAU = '$matkhaumoi_md5' WHERE TV_MA = '$new_tv_ma'"); // Dùng new_tv_ma
-                $password_message = 'Cập nhật mật khẩu thành công!';
+                $matkhaumoi_hash = password_hash($matkhaumoi, PASSWORD_DEFAULT);
+                $pwd_sql = "UPDATE thanhvien SET TV_MATKHAU = ? WHERE TV_MA = ?";
+                if ($pwd_stmt = $conn->prepare($pwd_sql)) {
+                    $pwd_stmt->bind_param("ss", $matkhaumoi_hash, $new_tv_ma);
+                    if ($pwd_stmt->execute()) {
+                        $password_message = 'Cập nhật mật khẩu thành công!';
+                    } else {
+                        $password_message = 'Không thể cập nhật mật khẩu mới!';
+                        $update_success = false;
+                    }
+                    $pwd_stmt->close();
+                }
             } else {
                 $password_message = 'Mật khẩu mới không trùng khớp!';
                 $update_success = false;
@@ -162,11 +205,9 @@ if (isset($_POST['btnluu'])) {
     }
 
     if ($update_success) {
-        // Nếu người dùng đang đăng nhập là người vừa được cập nhật, đồng bộ lại session hiển thị
-        if (isset($_SESSION['code']) && $_SESSION['code'] === $old_tv_ma) {
-            // Cập nhật tên hiển thị trên menu
+        // Đồng bộ lại session hiển thị nếu đổi thông tin cá nhân của chính mình
+        if (isset($_SESSION['code']) && $_SESSION['code'] === $new_tv_ma) {
             $_SESSION['username'] = $ten;
-            // Nếu admin cũng thay đổi nhóm người dùng cho chính mình, cập nhật lại quyền trong session
             if ($is_admin && isset($nnd_ma) && $nnd_ma !== '') {
                 $_SESSION['nnd_ma'] = (int)$nnd_ma;
             }
@@ -174,20 +215,25 @@ if (isset($_POST['btnluu'])) {
         $alert_message = 'Cập nhật thông tin thành công! ' . $password_message;
         echo "<script>alert('{$alert_message}'); window.location.href='thongtincanhan.php';</script>";
     } else {
-        $alert_message = 'Cập nhật thất bại! ' . $password_message . ' SQL: ' . addslashes(mysqli_error($conn));
+        $alert_message = 'Cập nhật thất bại! ' . $password_message;
         echo "<script>alert('{$alert_message}');</script>";
     }
 
-    // Tải lại dữ liệu member sau khi cập nhật để hiển thị đúng
+    // Tải lại dữ liệu member sau khi cập nhật
     $reload_query = "SELECT tv.*, cv.CV_TEN, nnd.NND_TEN, pb.PB_TEN 
                      FROM thanhvien tv 
                      LEFT JOIN chucvu cv ON tv.CV_MA = cv.CV_MA 
                      LEFT JOIN nhomnguoidung nnd ON tv.NND_MA = nnd.NND_MA 
                      LEFT JOIN phongban pb ON tv.PB_MA = pb.PB_MA 
-                     WHERE tv.TV_MA = '$new_tv_ma'";
-    $result_member = mysqli_query($conn, $reload_query);
-    if ($result_member) {
-        $member = mysqli_fetch_assoc($result_member);
+                     WHERE tv.TV_MA = ?";
+    if ($stmt = $conn->prepare($reload_query)) {
+        $stmt->bind_param("s", $new_tv_ma);
+        $stmt->execute();
+        $result_member = $stmt->get_result();
+        if ($result_member && $result_member->num_rows > 0) {
+            $member = $result_member->fetch_assoc();
+        }
+        $stmt->close();
     }
 }
 ?>

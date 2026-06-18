@@ -14,7 +14,6 @@ $phoihop = mysqli_fetch_all($result, MYSQLI_ASSOC); ?>
             </div>
             <form method="post" id="projectFormInsert">
                 <div class="modal-body">
-                    <input type="hidden" name="status" id="inputStatus">
                     <div class="row">
                         <div class="col-md-12">
                             <div class="form-group">
@@ -169,11 +168,6 @@ $(document).ready(function() {
         // Gửi form
         const formData = new FormData(this);
         
-        // Debug form data
-        for (let pair of formData.entries()) {
-            console.log(pair[0] + ': ' + pair[1]);
-        }
-        
         $.ajax({
             url: 'ajax_work/insert_project.php', // Đảm bảo đúng đường dẫn
             type: 'POST',
@@ -181,11 +175,9 @@ $(document).ready(function() {
             processData: false,
             contentType: false,
             beforeSend: function() {
-                console.log('URL gọi:', this.url); // Thêm debug URL
-                console.log('Đang gửi dữ liệu...', formData); 
+                // Disable button
             },
             success: function(response) {
-                console.log('Response từ server:', response); // Debug
                 try {
                     const result = JSON.parse(response);
                     if (result.status) {

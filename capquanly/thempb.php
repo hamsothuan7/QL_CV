@@ -2,6 +2,15 @@
 include('../config.php');
 session_start(); // Start the session
 
+if (!isset($_SESSION['code'])) {
+    header('Location: ../index.php');
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] == "POST" and isset($_POST['btnluu'])) {
     InsertData();
 }

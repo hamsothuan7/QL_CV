@@ -16,8 +16,8 @@ if (!isset($_SESSION['username'])) {
 // Tham số phân trang và bộ lọc
 $keywords = filter_input(INPUT_GET, 'keywords', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
 $keywords = trim($keywords);
-$from_date = filter_input(INPUT_GET, 'from_date', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
-$to_date = filter_input(INPUT_GET, 'to_date', FILTER_SANITIZE_SPECIAL_CHARS) ?? '';
+$from_date = isset($_GET['from_date']) ? filter_input(INPUT_GET, 'from_date', FILTER_SANITIZE_SPECIAL_CHARS) : date('Y-m-01');
+$to_date = isset($_GET['to_date']) ? filter_input(INPUT_GET, 'to_date', FILTER_SANITIZE_SPECIAL_CHARS) : date('Y-m-t');
 
 // Phân trang cho Table View
 $page = max(1, (int)($_GET['page'] ?? 1));
@@ -25,7 +25,7 @@ $perPageInput = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
 $perPage = in_array($perPageInput, [20, 50, 100]) ? $perPageInput : 20;
 
 // Limit cho Kanban lazy load
-$kanbanInitLimit = 30;
+$kanbanInitLimit = 10;
 
 include_once(__DIR__ . '/ajax/query_helper.php');
 
@@ -81,6 +81,9 @@ try {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.css" />
     <link href="https://cdn.jsdelivr.net/gh/hung1001/font-awesome-pro@4cac1a6/css/all.css" rel="stylesheet"
         type="text/css" />
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    
     <!-- Đảm bảo chỉ load jQuery trước Bootstrap JS, không lặp lại -->
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js"></script>
@@ -120,11 +123,11 @@ try {
                         <input type="text" name="keywords" class="cv-filter-input" placeholder="🔍 Tìm kiếm..." value="<?php echo htmlspecialchars($keywords); ?>">
                         <div class="cv-filter-date-group">
                             <span class="cv-filter-label">Từ ngày</span>
-                            <input type="date" id="from_date" name="from_date" class="cv-filter-input" value="<?php echo htmlspecialchars($from_date); ?>">
+                            <input type="text" id="from_date" name="from_date" class="cv-filter-input" placeholder="Từ ngày..." value="<?php echo htmlspecialchars($from_date); ?>">
                         </div>
                         <div class="cv-filter-date-group">
                             <span class="cv-filter-label">Đến ngày</span>
-                            <input type="date" id="to_date" name="to_date" class="cv-filter-input" value="<?php echo htmlspecialchars($to_date); ?>">
+                            <input type="text" id="to_date" name="to_date" class="cv-filter-input" placeholder="Đến ngày..." value="<?php echo htmlspecialchars($to_date); ?>">
                         </div>
                         <button class="cv-btn cv-btn-danger" type="submit"><i class="fal fa-search"></i> Tìm</button>
                         <button type="button" id="resetSearch" class="cv-btn cv-btn-outline"><i class="fal fa-undo"></i> Đặt lại</button>
@@ -149,11 +152,7 @@ try {
         <script>
             // Reset form
             document.getElementById('resetSearch').onclick = function() {
-                var form = document.getElementById('searchForm');
-                form.keywords.value = '';
-                form.from_date.value = '';
-                form.to_date.value = '';
-                form.submit();
+                window.location.href = window.location.pathname;
             };
         </script>
             <div class="body-section" id="result">
@@ -186,6 +185,21 @@ try {
     <script src="./css/select2/select2.min.js"></script>
     <script src="css/app.js"></script>
     <script src="./css/ckeditor/ckeditor.js"></script>
+    
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
+    <script>
+    $(document).ready(function() {
+        flatpickr("#from_date, #to_date", {
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            locale: "vn"
+        });
+    });
+    </script>
+    
     <script>
     $(document).ready(function() {
         // Xử lý sự kiện click nút Thêm mẫu CV

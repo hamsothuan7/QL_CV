@@ -1,6 +1,16 @@
 <?php
 include('../config.php');
-session_start(); ?>
+session_start(); 
+
+if (!isset($_SESSION['code'])) {
+    header('Location: ../index.php');
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html>
 

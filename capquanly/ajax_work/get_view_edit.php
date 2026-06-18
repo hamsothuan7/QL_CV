@@ -3,7 +3,7 @@
 include('../../config.php');
 
 // Check if the request is made via AJAX
-if ($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
     // Sample data to be passed to the view
 
     $code = $_GET['code'];
@@ -78,10 +78,13 @@ if ($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
     $taskStmt->execute();
     $project = $taskStmt->get_result()->fetch_assoc();
 
-    //Get nhận xét
-    $sql = "SELECT c.*, v.TV_TEN FROM binhluan_cv c INNER JOIN thanhvien v ON c.TV_MA = v.TV_MA WHERE c.DSCV_MA = '$code' ORDER BY c.ID DESC ";
-    $result = mysqli_query($conn, $sql);
-    $comments = mysqli_fetch_all($result, MYSQLI_ASSOC);
+    // Lấy nhận xét — dùng Prepared Statement (tránh SQL Injection)
+    $sqlComment = "SELECT c.*, v.TV_TEN FROM binhluan_cv c INNER JOIN thanhvien v ON c.TV_MA = v.TV_MA WHERE c.DSCV_MA = ? ORDER BY c.ID DESC";
+    $stmtComment = $conn->prepare($sqlComment);
+    $stmtComment->bind_param('s', $code);
+    $stmtComment->execute();
+    $comments = $stmtComment->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmtComment->close();
 
     $data = [
         'project' => $project,
@@ -89,12 +92,12 @@ if ($_SERVER['HTTP_X_REQUESTED_WITH'] == 'XMLHttpRequest') {
         'comments' => $comments,
     ];
 
-    //update đã xem
-    $sql = "UPDATE binhluan_cv 
-            SET TRANGTHAI = 1 
-            WHERE DSCV_MA = '$code' AND TV_MA <> '$userId' ";
-
-    $result = mysqli_query($conn, $sql);
+    // Cập nhật trạng thái đã xem — dùng Prepared Statement
+    $sqlViewed = "UPDATE binhluan_cv SET TRANGTHAI = 1 WHERE DSCV_MA = ? AND TV_MA <> ?";
+    $stmtViewed = $conn->prepare($sqlViewed);
+    $stmtViewed->bind_param('ss', $code, $userId);
+    $stmtViewed->execute();
+    $stmtViewed->close();
 
     // Render the view and pass the data
     echo renderView('modal_edit_inner.php', $data);

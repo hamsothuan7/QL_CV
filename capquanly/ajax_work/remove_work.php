@@ -2,24 +2,42 @@
 include('../../config.php');
 
 try {
-    $code = $_GET['code'];
-    $id = $_GET['id'];
-    $sql = "DELETE FROM danhsachcongviec WHERE DSCV_MA = '$id' ";
-    $result = mysqli_query($conn, $sql);
+    $code = trim($_GET['code'] ?? '');
+    $id   = trim($_GET['id'] ?? '');
+
+    if (empty($id)) {
+        echo json_encode(['status' => false, 'message' => 'Mã công việc không hợp lệ']);
+        return;
+    }
+
+    $stmt = $conn->prepare("DELETE FROM danhsachcongviec WHERE DSCV_MA = ?");
+    if (!$stmt) {
+        throw new Exception('Lỗi chuẩn bị câu lệnh: ' . $conn->error);
+    }
+
+    $stmt->bind_param('s', $id);
+    $result   = $stmt->execute();
+    $affected = $stmt->affected_rows;
+    $stmt->close();
     $conn->close();
-    echo json_encode([
-        'status' => true,
-        'data' => $code,
-        'message' => 'Xóa công việc thành công'
-    ]);
-    return;
+
+    if ($result && $affected > 0) {
+        echo json_encode([
+            'status'  => true,
+            'data'    => $code,
+            'message' => 'Xóa công việc thành công'
+        ]);
+    } else {
+        echo json_encode([
+            'status'  => false,
+            'message' => 'Xóa công việc thất bại hoặc không tìm thấy công việc'
+        ]);
+    }
 
 } catch (\Exception $e) {
     echo json_encode([
-        'status' => false,
+        'status'  => false,
         'message' => $e->getMessage()
     ]);
-    return;
 }
-
 ?>

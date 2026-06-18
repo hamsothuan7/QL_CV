@@ -116,7 +116,8 @@ error_log('projectLeader: ' . print_r($projectLeader, true));
             'height' => '80%',
             'top' => '10%',
             'width' => '48%',
-            'left' => '1%'
+            'left' => '1%',
+            'dependencies' => $row['DSCV_TIENQUYET'] ?? null
         ];
 
         // Thêm thanh tiến độ nếu tiến độ > 0
@@ -144,7 +145,8 @@ error_log('projectLeader: ' . print_r($projectLeader, true));
                 'height' => '80%',
                 'top' => '10%',
                 'width' => '48%',
-                'left' => '51%'
+                'left' => '51%',
+                'dependencies' => $row['DSCV_TIENQUYET'] ?? null
             ];
         }
 

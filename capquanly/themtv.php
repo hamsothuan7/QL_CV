@@ -1,6 +1,15 @@
 <?php
 include('../config.php');
 session_start(); // Start the session
+
+if (!isset($_SESSION['code'])) {
+    header('Location: ../index.php');
+    exit;
+}
+if (!isset($_SESSION['nnd_ma']) || $_SESSION['nnd_ma'] != 1) {
+    echo "<script>alert('Bạn không có quyền truy cập chức năng này.'); window.location.href='index.php';</script>";
+    exit;
+}
 //$tvma = generateTVMA(); // Generate TV_MA before using it
 
 if ($_SERVER['REQUEST_METHOD'] == "POST" and isset($_POST['btnluu'])) {
@@ -27,40 +36,54 @@ function InsertData()
 {
     include('../config.php');
 
-    $tvma = $_POST['txtMaSoCanBo']; // Mã cán bộ nhập tay
-    $Name = $_POST['txtName'];
+    $tvma = trim($_POST['txtMaSoCanBo']); // Mã cán bộ nhập tay
+    $Name = trim($_POST['txtName']);
     $NgaySinh = $_POST['txtNgaySinh'];
     $GioiTinh = $_POST['gioitinh'];
-    $email = $_POST['txtEmail'];
+    $email = trim($_POST['txtEmail']);
     $matkhau = $_POST['txtMatKhau'];
-    $quequan = $_POST['txtquequan'];
+    $quequan = trim($_POST['txtquequan']);
     $pb_ma = $_POST['phongban'];
     $cv_ma = $_POST['chucvu'];
     $nnd_ma = $_POST['nhomnguoidung'];
 
-    // Kiểm tra mã cán bộ đã tồn tại chưa
-    $check_query = "SELECT * FROM thanhvien WHERE TV_MA = '$tvma'";
-    $check_result = mysqli_query($conn, $check_query);
-
-    if (mysqli_num_rows($check_result) > 0) {
-        echo "<script>alert('Mã số cán bộ \"$tvma\" đã tồn tại. Vui lòng nhập mã khác.'); window.history.back();</script>";
-        return;
+    // Kiểm tra mã cán bộ đã tồn tại chưa bằng Prepared Statement
+    $check_query = "SELECT TV_MA FROM thanhvien WHERE TV_MA = ?";
+    if ($stmt = $conn->prepare($check_query)) {
+        $stmt->bind_param("s", $tvma);
+        $stmt->execute();
+        $stmt->store_result();
+        
+        if ($stmt->num_rows > 0) {
+            echo "<script>alert('Mã số cán bộ \"$tvma\" đã tồn tại. Vui lòng nhập mã khác.'); window.history.back();</script>";
+            $stmt->close();
+            mysqli_close($conn);
+            return;
+        }
+        $stmt->close();
     }
 
-    // Mã hóa mật khẩu
-    $hashed_password = md5($matkhau);
+    // Mã hóa mật khẩu bằng thuật toán băm an toàn hiện đại
+    $hashed_password = password_hash($matkhau, PASSWORD_DEFAULT);
 
-    // Câu truy vấn thêm mới
+    // Câu truy vấn thêm mới bằng Prepared Statement
     $query = "INSERT INTO `thanhvien`(`TV_MA`, `TV_TEN`, `TV_NGAYSINH`, `TV_GIOITINH`, `TV_QUEQUAN`, `TV_EMAIL`, `TV_MATKHAU`, `PB_MA`, `CV_MA`, `NND_MA`, `active`) 
-              VALUES ('$tvma', '$Name', '$NgaySinh', '$GioiTinh', '$quequan', '$email', '$hashed_password', '$pb_ma', '$cv_ma', '$nnd_ma', 0)";
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
     
-    $result = mysqli_query($conn, $query);
+    if ($stmt = $conn->prepare($query)) {
+        $stmt->bind_param("ssssssssss", $tvma, $Name, $NgaySinh, $GioiTinh, $quequan, $email, $hashed_password, $pb_ma, $cv_ma, $nnd_ma);
+        $result = $stmt->execute();
+        $stmt->close();
 
-    if ($result) {
-        header('Location: danhsachthanhvien.php');
-        exit();
+        if ($result) {
+            mysqli_close($conn);
+            header('Location: danhsachthanhvien.php');
+            exit();
+        } else {
+            echo "Lỗi khi thêm thành viên: " . $conn->error;
+        }
     } else {
-        echo "Lỗi khi thêm thành viên: " . mysqli_error($conn);
+        echo "Lỗi chuẩn bị truy vấn SQL: " . $conn->error;
     }
 
     mysqli_close($conn);

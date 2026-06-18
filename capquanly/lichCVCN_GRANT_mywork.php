@@ -126,7 +126,8 @@ try {
                 'label' => $row['DSCV_TEN'],
                 'desc' => $description,
                 'customClass' => $color,
-                'dataObj' => $row['DSCV_MA']
+                'dataObj' => $row['DSCV_MA'],
+                'dependencies' => $row['DSCV_TIENQUYET'] ?? null
             ])
         );
     }

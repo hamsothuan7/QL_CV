@@ -105,7 +105,7 @@ if ($isAdmin || $nndMa == 4) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Quản Lý Dự Án</title>
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Font Awesome JS -->
     <link rel="stylesheet"
         href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" />
@@ -830,17 +830,49 @@ if ($res_all_filtered) {
                                 </div>
                                 <div class="card-body py-2">
                                     <div class="row align-items-end">
-                                        <div class="col-12 col-md-5 mb-2 mb-md-0">
+                                        <div class="col-12 col-md-3 mb-2 mb-md-0">
+                                            <label class="small text-muted fw-bold mb-1">Phòng Ban</label>
+                                            <select class="form-control form-control-sm" id="ganttFilterPhongBan">
+                                                <option value="">-- Tất cả --</option>
+                                                <?php 
+                                                // Fetch all departments if not already fetched
+                                                if (empty($phongbans)) {
+                                                    $sql_pb = "SELECT PB_MA, PB_TEN FROM phongban WHERE PB_TRANGTHAI = 1";
+                                                    $rs_pb = mysqli_query($conn, $sql_pb);
+                                                    $phongbans = [];
+                                                    if ($rs_pb) {
+                                                        while($row_pb = mysqli_fetch_assoc($rs_pb)) {
+                                                            $phongbans[] = $row_pb;
+                                                        }
+                                                    }
+                                                }
+                                                if (!empty($phongbans)): foreach ($phongbans as $pb): 
+                                                    $is_selected = (isset($selected_pb) && $selected_pb == $pb['PB_MA']) ? 'selected' : '';
+                                                ?>
+                                                    <option value="<?php echo $pb['PB_MA']; ?>" <?php echo $is_selected; ?>>
+                                                        <?php echo $pb['PB_TEN']; ?>
+                                                    </option>
+                                                <?php endforeach; endif; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-12 col-md-2 mb-2 mb-md-0">
+                                            <label class="small text-muted fw-bold mb-1">Năm</label>
+                                            <input type="number" class="form-control form-control-sm" id="ganttFilterYear" value="<?php echo isset($selected_year) ? $selected_year : date('Y'); ?>" min="1900" max="2100">
+                                        </div>
+                                        <div class="col-12 col-md-4 mb-2 mb-md-0">
                                             <label class="small text-muted fw-bold mb-1">Chọn Dự Án</label>
                                             <!-- Hidden select to keep existing logic working -->
                                             <select class="form-control form-control-sm" id="projectFilter2" style="display:none;">
                                                 <option value="">-- Tất cả dự án --</option>
                                                 <?php if (!empty($projects)): ?>
-                                                    <?php foreach ($projects as $pj): ?>
+                                                    <?php foreach ($projects as $pj): 
+                                                        $pb_ma = isset($pj['PB_MA']) ? $pj['PB_MA'] : '';
+                                                        $nam = isset($pj['DA_NGAYBATDAU']) ? date('Y', strtotime($pj['DA_NGAYBATDAU'])) : date('Y');
+                                                    ?>
                                                         <option value="<?php echo $pj['DA_MA']; ?>" 
-                                                            data-phongban="<?php echo isset($pj['PB_MA']) ? $pj['PB_MA'] : ''; ?>"
-                                                            data-nam="<?php echo isset($pj['DA_NGAYBATDAU']) ? date('Y', strtotime($pj['DA_NGAYBATDAU'])) : date('Y'); ?>">
-                                                            <?php echo $pj['DA_TEN']; ?>
+                                                            data-phongban="<?php echo $pb_ma; ?>"
+                                                            data-nam="<?php echo $nam; ?>">
+                                                            <?php echo $pj['DA_TEN'] . ($pb_ma ? " ($pb_ma - $nam)" : " ($nam)"); ?>
                                                         </option>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
@@ -848,7 +880,7 @@ if ($res_all_filtered) {
                                             <!-- Searchable dropdown UI -->
                                             <div class="searchable-dropdown" id="searchableProjectDropdown">
                                                 <input type="text" class="search-input" id="projectSearchInput" 
-                                                       placeholder="Tìm kiếm hoặc chọn dự án..." autocomplete="off">
+                                                       placeholder="Tìm kiếm dự án..." autocomplete="off">
                                                 <button type="button" class="clear-btn" id="projectSearchClear" title="Xóa">&times;</button>
                                                 <i class="fas fa-caret-down dropdown-toggle-icon" id="projectDropdownIcon"></i>
                                                 <div class="dropdown-list" id="projectDropdownList">
@@ -857,11 +889,11 @@ if ($res_all_filtered) {
                                             </div>
                                         </div>
                                     
-                                        <div class="col-12 col-md-4 mb-2 mb-md-0 d-flex gap-2 align-items-end">
-                                            <button type="button" class="btn btn-sm btn-primary" id="applyStatusFilter2">
+                                        <div class="col-12 col-md-3 mb-2 mb-md-0 d-flex gap-2 align-items-end">
+                                            <button type="button" class="btn btn-sm btn-primary w-100" id="applyStatusFilter2">
                                                 <i class="fas fa-search"></i> Lọc
                                             </button>
-                                            <button type="button" class="btn btn-sm btn-secondary" id="resetStatusFilter2" title="Đặt lại">
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" id="resetStatusFilter2" title="Đặt lại">
                                                 <i class="fas fa-undo"></i> Đặt lại
                                             </button>
                                         </div>
@@ -984,7 +1016,18 @@ if ($res_all_filtered) {
                         
                         function openDropdown() {
                             buildDropdownItems();
-                            filterDropdownItems(searchInput.value);
+                            
+                            // Smart Focus Bypass: Tạm thời bỏ qua bộ lọc chữ nếu từ khóa trùng với dự án đang chọn
+                            var filterText = searchInput.value;
+                            if (select.selectedIndex >= 0) {
+                                var selectedOption = select.options[select.selectedIndex];
+                                var currentText = (selectedOption && selectedOption.value !== '') ? selectedOption.textContent.trim() : '';
+                                if (filterText.trim() === currentText) {
+                                    filterText = ''; // Bypass bộ lọc để hiển thị toàn bộ
+                                }
+                            }
+                            
+                            filterDropdownItems(filterText);
                             dropdownList.classList.add('show');
                             dropdownIcon.classList.add('open');
                         }
@@ -1094,9 +1137,10 @@ if ($res_all_filtered) {
                         
                         // Expose a refresh function for when filterProjectDropdown runs
                         window.refreshSearchableDropdown = function() {
+                            buildDropdownItems();
                             // Update search input to reflect current select state
                             var selectedOpt = select.options[select.selectedIndex];
-                            if (selectedOpt) {
+                            if (selectedOpt && selectedOpt.style.display !== 'none') {
                                 searchInput.value = selectedOpt.value ? selectedOpt.textContent.trim() : '';
                             } else {
                                 searchInput.value = '';
@@ -1104,7 +1148,6 @@ if ($res_all_filtered) {
                             updateClearBtn();
                             // Rebuild items if dropdown is open
                             if (dropdownList.classList.contains('show')) {
-                                buildDropdownItems();
                                 filterDropdownItems(searchInput.value);
                             }
                         };
@@ -1121,60 +1164,132 @@ if ($res_all_filtered) {
                     var hasTopFilter = <?php echo (!empty($selected_pb) || isset($_GET['month']) || isset($_GET['year']) || isset($_GET['pb_ma'])) ? 'true' : 'false'; ?>;
 
                     function filterProjectDropdown() {
-                        var phongbanId = $('#phongbanFilter').length ? $('#phongbanFilter').val() : '';
-                        
-                        // Bước 1: Hiển thị tất cả trước
-                        $('#projectFilter2 option').show();
-                        
-                        // Bước 2: Nếu có chọn phòng ban, lọc theo phòng ban
-                        if (phongbanId && phongbanId !== '') {
-                            $('#projectFilter2 option').each(function() {
-                                var $opt = $(this);
-                                if ($opt.val() === '') return; // Giữ option mặc định
-                                var optPB = ($opt.attr('data-phongban') || '').trim();
-                                if (optPB !== phongbanId.trim()) {
-                                    $opt.hide();
-                                }
-                            });
-                        }
-                        
-                        // Bước 3: Nếu có bộ lọc tháng/năm đang hoạt động, chỉ hiển thị dự án có công việc trong tháng/năm đó
-                        if (hasTopFilter && filteredProjectIds.length > 0) {
-                            $('#projectFilter2 option').each(function() {
-                                var $opt = $(this);
-                                if ($opt.val() === '') return;
-                                if ($opt.is(':visible') && filteredProjectIds.indexOf(String($opt.val())) === -1) {
-                                    $opt.hide();
-                                }
-                            });
-                        }
-                        
-                        // Reset selection nếu option đang chọn bị ẩn
-                        var $selected = $('#projectFilter2 option:selected');
-                        if ($selected.length && !$selected.is(':visible') && $selected.val() !== '') {
-                            $('#projectFilter2').val('');
-                        }
-                        
-                        // Sync searchable dropdown UI
-                        if (typeof window.refreshSearchableDropdown === 'function') {
-                            window.refreshSearchableDropdown();
-                        }
-                    }
+    // Lấy giá trị trực tiếp từ các bộ lọc (ưu tiên bộ lọc Gantt, nếu không có thì lấy bộ lọc tổng)
+    var ganttDept = $('#ganttFilterPhongBan').length ? $('#ganttFilterPhongBan').val() : '';
+    var topDept = $('#phongbanFilter').length ? $('#phongbanFilter').val() : '';
+    var phongbanId = ganttDept || topDept || '';
+
+    var ganttYear = $('#ganttFilterYear').length ? $('#ganttFilterYear').val() : '';
+    var topYear = $('#filterYear').length ? $('#filterYear').val() : '';
+    var selectedYear = ganttYear || topYear || '';
+    
+    var select = document.getElementById('projectFilter2');
+    if (!select) return;
+    
+    var options = select.options;
+    var hasVisible = false;
+
+    // Duyệt qua toàn bộ danh sách dự án trong dropdown
+    for (var i = 0; i < options.length; i++) {
+        var opt = options[i];
+        if (opt.value === '') {
+            opt.style.display = '';
+            opt.hidden = false;
+            continue;
+        }
+        
+        var optPB = (opt.getAttribute('data-phongban') || '').trim();
+        var optYear = (opt.getAttribute('data-nam') || '').trim();
+        
+        // Bắt buộc phải chọn Phòng ban và Năm mới hiển thị dự án tương ứng
+        if (phongbanId === '' || selectedYear === '') {
+            opt.style.display = 'none';
+            opt.hidden = true;
+        } else {
+            // Chỉ so khớp Phòng ban của dự án và Năm bắt đầu dự án
+            var matchDept = (optPB === phongbanId.trim());
+            var matchYear = (optYear === selectedYear.trim());
+            
+            if (matchDept && matchYear) {
+                opt.style.display = '';
+                opt.hidden = false;
+                hasVisible = true;
+            } else {
+                opt.style.display = 'none';
+                opt.hidden = true;
+            }
+        }
+    }
+    
+    // Cập nhật giao diện: Disable ô tìm kiếm nếu chưa chọn đủ điều kiện Phòng Ban & Năm
+    var searchInput = document.getElementById('projectSearchInput');
+    if (searchInput) {
+        if (phongbanId === '' || selectedYear === '') {
+            searchInput.disabled = true;
+            searchInput.placeholder = 'Vui lòng chọn Phòng Ban & Năm trước...';
+            searchInput.style.backgroundColor = '#e9ecef';
+            searchInput.style.cursor = 'not-allowed';
+        } else {
+            searchInput.disabled = false;
+            searchInput.placeholder = 'Tìm kiếm dự án...';
+            searchInput.style.backgroundColor = '';
+            searchInput.style.cursor = 'text';
+        }
+    }
+    
+    // =========================================================================
+    // Đã loại bỏ "Bước 3" ràng buộc theo filteredProjectIds (Tháng cụ thể ở trên)
+    // Điều này đảm bảo hiển thị ĐẦY ĐỦ dự án của Phòng Ban và Năm đó!
+    // =========================================================================
+    
+    // Tự động dọn dẹp: Reset lựa chọn nếu dự án đang được chọn bị ẩn
+    if (select.selectedIndex > 0) {
+        var selectedOpt = select.options[select.selectedIndex];
+        if (selectedOpt.style.display === 'none' || selectedOpt.hidden) {
+            select.value = '';
+            if ($('#projectSearchInput').length) {
+                $('#projectSearchInput').val('');
+            }
+        }
+    }
+    
+    // Đồng bộ lại giao diện Tìm kiếm Dự án
+    if (typeof window.refreshSearchableDropdown === 'function') {
+        window.refreshSearchableDropdown();
+    }
+}
 
                     $(document).ready(function() {
                         // Lọc dropdown dự án khi trang tải xong
                         filterProjectDropdown();
                         
-                        // Khi thay đổi phòng ban ở bộ lọc trên, cập nhật dropdown dự án
+                        // Khi thay đổi bộ lọc riêng của Gantt, cập nhật dropdown dự án
+                        $('#ganttFilterPhongBan, #ganttFilterYear').on('change input', function() {
+                            // Tự động Khôi phục trạng thái (Auto-Reset) khi đổi Phòng ban hoặc Năm
+                            var select = document.getElementById('projectFilter2');
+                            if (select) select.value = '';
+                            if ($('#projectSearchInput').length) {
+                                $('#projectSearchInput').val('');
+                            }
+                            
+                            filterProjectDropdown();
+                            $('#projectFilter2').trigger('change');
+                        });
+                        
+                        // Đồng bộ bộ lọc toàn cục (nếu thay đổi thì apply xuống bộ lọc Gantt và lọc list)
                         if ($('#phongbanFilter').length) {
-                            $('#phongbanFilter').on('change.projectDropdown', function() {
-                                filterProjectDropdown();
-                                // Reset lựa chọn dự án
-                                $('#projectFilter2').val('').trigger('change');
-                                // Sync searchable dropdown
-                                if (typeof window.refreshSearchableDropdown === 'function') {
-                                    window.refreshSearchableDropdown();
+                            $('#phongbanFilter').on('change', function() {
+                                if ($('#ganttFilterPhongBan').length) {
+                                    $('#ganttFilterPhongBan').val($(this).val());
                                 }
+                                var select = document.getElementById('projectFilter2');
+                                if (select) select.value = '';
+                                if ($('#projectSearchInput').length) $('#projectSearchInput').val('');
+                                filterProjectDropdown();
+                                $('#projectFilter2').trigger('change');
+                            });
+                        }
+                        
+                        if ($('#filterYear').length) {
+                            $('#filterYear').on('change input', function() {
+                                if ($('#ganttFilterYear').length) {
+                                    $('#ganttFilterYear').val($(this).val());
+                                }
+                                var select = document.getElementById('projectFilter2');
+                                if (select) select.value = '';
+                                if ($('#projectSearchInput').length) $('#projectSearchInput').val('');
+                                filterProjectDropdown();
+                                $('#projectFilter2').trigger('change');
                             });
                         }
                     });
@@ -1435,6 +1550,14 @@ if ($res_all_filtered) {
                     
                 <h3 class="text-center mb-3">Biểu đồ tiến trình dự án</h3>
                 
+                <style>
+                .gantt-scroll-container {
+                    width: 100%;
+                    overflow-x: auto;
+                    overflow-y: hidden;
+                }
+                </style>
+                
                 <div class="gantt-scroll-container">
                     <!-- Thêm 2 nút chuyển đổi chế độ biểu đồ -->
                     <div class="mb-3 text-center">
@@ -1515,7 +1638,7 @@ if ($res_all_filtered) {
     <!-- Bootstrap 4 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
     <!-- Popper.js -->
     <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
     <!-- Bootstrap 4 JS -->
@@ -1544,9 +1667,251 @@ if ($res_all_filtered) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/3.9.0/fullcalendar.js"></script>
 
-    <!-- jQuery Gantt CSS and JS -->
-    <link rel="stylesheet" href="./css/gantt.css">
-    <script src="./css/jquery.fn.gantt.min.js"></script>
+    <!-- Google Charts Gantt -->
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', {'packages':['gantt']});
+        
+        function mapToGoogleGanttData(data) {
+            var rows = [];
+            var validTaskIds = [];
+            var seenTaskNames = {};
+            var uniqueData = [];
+            
+            if (!data || data.length === 0) return rows;
+            
+            // Lượt 1: Thu thập tất cả các ID công việc hợp lệ và loại bỏ các dòng bị trùng tên
+            for (var i = 0; i < data.length; i++) {
+                if (data[i].values && data[i].values.length > 0) {
+                    var val = data[i].values[0];
+                    // Loại bỏ tiền tố số tự động do PHP sinh ra (ví dụ "1. ", "2. ") để so sánh chính xác tên gốc
+                    var taskName = String(val.label || data[i].name || 'Unnamed')
+                        .replace(/^\d+\.\s*/, '')
+                        .trim()
+                        .toLowerCase();
+                    
+                    if (!seenTaskNames[taskName]) {
+                        seenTaskNames[taskName] = true;
+                        uniqueData.push(data[i]);
+                        validTaskIds.push(String(val.dataObj || 'task_' + uniqueData.length));
+                    }
+                }
+            }
+
+            for (var i = 0; i < uniqueData.length; i++) {
+                var item = uniqueData[i];
+                if (item.values && item.values.length > 0) {
+                    var val = item.values[0];
+                    var taskId = String(val.dataObj || 'task_' + (i + 1));
+                    var taskName = val.label || item.name || 'Unnamed';
+                    var resource = val.customClass || ''; 
+                    
+                    var startDate = new Date(val.from);
+                    var endDate = new Date(val.to);
+                    if (startDate.getTime() === endDate.getTime()) {
+                        endDate.setHours(endDate.getHours() + 24);
+                    }
+                    
+                    var duration = null;
+                    var percentComplete = val.progress || 0;
+                    
+                    // Logic lọc công việc tiên quyết (chỉ lấy các ID tồn tại thật sự)
+                    var dependencies = null;
+                    if (val.dependencies && String(val.dependencies).trim() !== '') {
+                        var rawDeps = String(val.dependencies).split(',');
+                        var cleanDeps = [];
+                        for (var d = 0; d < rawDeps.length; d++) {
+                            var depId = rawDeps[d].trim();
+                            if (validTaskIds.indexOf(depId) !== -1) {
+                                cleanDeps.push(depId);
+                            }
+                        }
+                        if (cleanDeps.length > 0) {
+                            dependencies = cleanDeps.join(',');
+                        }
+                    }
+                    
+                    rows.push([
+                        taskId,
+                        taskName,
+                        resource,
+                        startDate,
+                        endDate,
+                        duration,
+                        percentComplete,
+                        dependencies
+                    ]);
+                }
+            }
+            return rows;
+        }
+        
+        function drawGoogleGantt(containerId, dataArray, onSelectCallback) {
+            if (!dataArray || dataArray.length === 0) {
+                document.getElementById(containerId).innerHTML = '<div class="text-center p-3 text-muted">Không có dữ liệu để hiển thị</div>';
+                return;
+            }
+            
+            // 1. Tính toán ngày Min / Max cho Chart
+            var minDate = null;
+            var maxDate = null;
+            for (var i = 0; i < dataArray.length; i++) {
+                var sDate = dataArray[i][3];
+                var eDate = dataArray[i][4];
+                if (!minDate || sDate < minDate) minDate = sDate;
+                if (!maxDate || eDate > maxDate) maxDate = eDate;
+            }
+            
+            var dataTable = new google.visualization.DataTable();
+            dataTable.addColumn('string', 'Task ID');
+            dataTable.addColumn('string', 'Task Name');
+            dataTable.addColumn('string', 'Resource');
+            dataTable.addColumn('date', 'Start Date');
+            dataTable.addColumn('date', 'End Date');
+            dataTable.addColumn('number', 'Duration');
+            dataTable.addColumn('number', 'Percent Complete');
+            dataTable.addColumn('string', 'Dependencies');
+            
+            dataTable.addRows(dataArray);
+            
+            // Xây dựng mảng màu sắc (palette) dựa trên Resource
+            // Google Gantt gán màu từ palette cho các Resource theo thứ tự bảng chữ cái
+            var uniqueResources = [];
+            for (var i = 0; i < dataArray.length; i++) {
+                var res = dataArray[i][2];
+                if (res && uniqueResources.indexOf(res) === -1) {
+                    uniqueResources.push(res);
+                }
+            }
+            uniqueResources.sort();
+
+            var customClassToColor = {
+                'ganttDark':   {color: '#64748B', dark: '#475569', light: '#94A3B8'}, // Chưa tiếp nhận (Slate)
+                'ganttBlue':   {color: '#3B82F6', dark: '#2563EB', light: '#93C5FD'}, // Đang tiến hành (Blue)
+                'ganttRed':    {color: '#F43F5E', dark: '#E11D48', light: '#FDA4AF'}, // Đang trễ (Rose)
+                'ganttGreen':  {color: '#10B981', dark: '#059669', light: '#6EE7B7'}, // Hoàn thành (Emerald)
+                'ganttOrange': {color: '#F59E0B', dark: '#D97706', light: '#FCD34D'}, // Hoàn thành trễ (Amber)
+                'ganttStone':  {color: '#78716C', dark: '#57534E', light: '#D6D3D1'}  // Hủy (Stone)
+            };
+            
+            var palette = [];
+            for (var j = 0; j < uniqueResources.length; j++) {
+                var resName = uniqueResources[j];
+                if (customClassToColor[resName]) {
+                    palette.push(customClassToColor[resName]);
+                } else {
+                    palette.push({color: '#9CA3AF', dark: '#6B7280', light: '#D1D5DB'}); 
+                }
+            }
+            
+            // Tính toán chiều rộng động để giãn cột ngày
+            var containerWidth = document.getElementById(containerId).clientWidth || 800;
+            var chartWidth = containerWidth;
+            if (minDate && maxDate) {
+                var totalDays = (maxDate - minDate) / (1000 * 60 * 60 * 24);
+                var minRequiredWidth = totalDays * 15 + 250; // Giảm xuống 15px cho mỗi ngày để cột bớt rộng + 250px cho cột label
+                if (minRequiredWidth > containerWidth) {
+                    chartWidth = minRequiredWidth;
+                }
+            }
+
+            var options = {
+                height: Math.max(400, dataArray.length * 42 + 50),
+                width: chartWidth,
+                gantt: {
+                    trackHeight: 38,
+                    palette: palette,
+                    criticalPathEnabled: false, // Tắt đường găng đỏ
+                    arrow: {
+                        angle: 45,       // Góc của đầu mũi tên
+                        width: 2.5,      // Độ dày mũi tên nổi bật hơn
+                        color: '#4f46e5',// Màu sắc mũi tên (Indigo tươi)
+                        radius: 15       // Độ bo góc lớn để đường mũi tên cong mềm mại
+                    }
+                }
+            };
+            
+            var chart = new google.visualization.Gantt(document.getElementById(containerId));
+            
+            // 2. Thêm đường Today và cuộn sau khi vẽ xong
+            google.visualization.events.addListener(chart, 'ready', function() {
+                var container = document.getElementById(containerId);
+                var oldLine = document.getElementById('gantt-today-line');
+                if (oldLine) oldLine.remove();
+                
+                var now = new Date();
+                if (minDate && maxDate && now >= minDate && now <= maxDate) {
+                    var totalTime = maxDate.getTime() - minDate.getTime();
+                    var passedTime = now.getTime() - minDate.getTime();
+                    var percent = passedTime / totalTime;
+                    
+                    var svg = container.getElementsByTagName('svg')[0];
+                    if (svg) {
+                        var svgWidth = svg.getBoundingClientRect().width || svg.clientWidth;
+                        var xOffset = 250;
+                        var rects = svg.querySelectorAll('rect');
+                        for(var k = 0; k < rects.length; k++) {
+                            var rx = parseFloat(rects[k].getAttribute('x') || 0);
+                            var rw = parseFloat(rects[k].getAttribute('width') || 0);
+                            if (rx > 50 && rw > 100 && (rx + rw) >= svgWidth * 0.9) {
+                                xOffset = rx;
+                                break;
+                            }
+                        }
+                        
+                        var timelineWidth = svgWidth - xOffset;
+                        var todayX = xOffset + (timelineWidth * percent);
+                        
+                        var line = document.createElement('div');
+                        line.id = 'gantt-today-line';
+                        line.style.position = 'absolute';
+                        line.style.top = '40px'; 
+                        line.style.bottom = '0';
+                        line.style.left = todayX + 'px';
+                        line.style.width = '2px';
+                        line.style.backgroundColor = '#ef4444';
+                        line.style.zIndex = '10';
+                        line.style.pointerEvents = 'none';
+                        line.style.boxShadow = '0 0 5px rgba(239,68,68,0.8)';
+                        
+                        container.style.position = 'relative';
+                        container.appendChild(line);
+                        
+                        var scrollContainer = container.closest('.gantt-scroll-container') || container.parentElement;
+                        if (scrollContainer) {
+                            var viewWidth = scrollContainer.clientWidth;
+                            var targetScroll = todayX - (viewWidth / 2);
+                            // Dùng vòng lặp setTimeout để đảm bảo UI đã vẽ DOM đầy đủ thanh cuộn trước khi trượt
+                            var scrollAction = function() {
+                                // Kiểm tra xem thanh cuộn ngang đã xuất hiện chưa
+                                if (scrollContainer.scrollWidth > scrollContainer.clientWidth) {
+                                    scrollContainer.scrollLeft = targetScroll > 0 ? targetScroll : 0;
+                                }
+                            };
+                            
+                            // Gọi trượt 3 lần ở các mốc thời gian khác nhau để đảm bảo thành công 100%
+                            setTimeout(scrollAction, 100);
+                            setTimeout(scrollAction, 500);
+                            setTimeout(scrollAction, 1000);
+                        }
+                    }
+                }
+            });
+
+            if (onSelectCallback) {
+                google.visualization.events.addListener(chart, 'select', function() {
+                    var selection = chart.getSelection();
+                    if (selection.length > 0) {
+                        var rowIndex = selection[0].row;
+                        var taskId = dataTable.getValue(rowIndex, 0);
+                        onSelectCallback(taskId);
+                    }
+                });
+            }
+            
+            chart.draw(dataTable, options);
+        }
+    </script>
 
     <script type="text/javascript">
         // Hàm ẩn Gantt chart 2
@@ -1568,24 +1933,10 @@ if ($res_all_filtered) {
                 return;
             }
             console.log('Got Gantt data:', data);
-            $("#ganttChart").gantt({
-                source: function(callback) {
-                    callback(data);
-                },
-                navigate: "scroll",
-                scale: "days",
-                maxScale: "months",
-                minScale: "hours",
-                itemsPerPage: 50,
-                monthDisplay: 'month',
-                monthNames: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                dateFormat: 'dd/MM/yyyy',
-                timeFormat: 'HH:mm',
-                useShowDay: function(date) {
-                    var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-                    return date.getDate() <= lastDay;
-                },
-                onItemClick: function(clickedItemId, e) {
+            
+            google.charts.setOnLoadCallback(function() {
+                var googleData = mapToGoogleGanttData(data);
+                drawGoogleGantt('ganttChart', googleData, function(clickedItemId) {
                     console.log('Đã click vào công việc ID:', clickedItemId);
                     if (!clickedItemId) return;
                     
@@ -1599,7 +1950,7 @@ if ($res_all_filtered) {
                     else if (/^\d+$/.test(clickedItemId)) {
                         window.open('lichCVCN_GRANT2.php?id=' + encodeURIComponent(clickedItemId), '_blank');
                     }
-                }
+                });
             });
         },
         error: function(xhr, status, error) {
@@ -1688,42 +2039,33 @@ if ($res_all_filtered) {
                 }
                 $('#ganttChart').empty();
                 
-                $("#ganttChart").gantt({
-                    source: sourceUrl,
-                    navigate: "scroll",
-                    scale: "days",
-                    maxScale: "months",
-                    minScale: "hours",
-                    itemsPerPage: 50,
-                    monthDisplay: 'month',
-                    monthNames: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    dateFormat: 'dd/MM/yyyy',
-                    timeFormat: 'HH:mm',
-                    useShowDay: function(date) {
-                        var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-                        return date.getDate() <= lastDay;
-                    },
-                    onItemClick: function(clickedItemId, e) {
-                        console.log('Đã click vào công việc ID (Gantt 2):', clickedItemId);
-                        if (!clickedItemId) return;
+                $.ajax({
+                    url: sourceUrl,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        var googleData = mapToGoogleGanttData(data);
+                        drawGoogleGantt('ganttChart', googleData, function(clickedItemId) {
+                            console.log('Đã click vào công việc ID (Gantt 2):', clickedItemId);
+                            if (!clickedItemId) return;
+                            
+                            var idStr = String(clickedItemId).toUpperCase();
+                            console.log('Chuỗi ID sau khi chuyển đổi:', idStr);
+                            
+                            // Nếu là công việc (bắt đầu bằng 'CV')
+                            if (idStr.startsWith('CV')) {
+                                console.log('Đây là công việc, gọi loadTaskDetail');
+                                loadTaskDetail(clickedItemId);
+                                return; // Dừng xử lý tiếp
+                            }
+                            
+                            // Nếu là ID dự án (chỉ chứa số)
+                            if (/^\d+$/.test(clickedItemId)) {
+                                console.log('Đây là dự án, mở lichCVCN_GRANT2.php');
+                                window.open('lichCVCN_GRANT2.php?id=' + encodeURIComponent(clickedItemId), '_blank');
+                            }
+                        });
                         
-                        var idStr = String(clickedItemId).toUpperCase();
-                        console.log('Chuỗi ID sau khi chuyển đổi:', idStr);
-                        
-                        // Nếu là công việc (bắt đầu bằng 'CV')
-                        if (idStr.startsWith('CV')) {
-                            console.log('Đây là công việc, gọi loadTaskDetail');
-                            loadTaskDetail(clickedItemId);
-                            return; // Dừng xử lý tiếp
-                        }
-                        
-                        // Nếu là ID dự án (chỉ chứa số)
-                        if (/^\d+$/.test(clickedItemId)) {
-                            console.log('Đây là dự án, mở lichCVCN_GRANT2.php');
-                            window.open('lichCVCN_GRANT2.php?id=' + encodeURIComponent(clickedItemId), '_blank');
-                        }
-                    },
-                    onRender: function() {
                         console.log("Biểu đồ công việc riêng đã được tải xong");
                         // Hiển thị thông tin lọc nếu có
                         var filterText = '';
@@ -1736,6 +2078,9 @@ if ($res_all_filtered) {
                         } else {
                             $('#ganttFilterInfo').hide();
                         }
+                    },
+                    error: function(err) {
+                        console.error('Lỗi khi tải dữ liệu công việc riêng', err);
                     }
                 });
             });
@@ -1776,29 +2121,19 @@ if ($res_all_filtered) {
                 $('#ganttChart').empty();
                 
                 // Tạo lại chart với source mới
-                $("#ganttChart").gantt({
-                    source: sourceUrl,
-                    navigate: "scroll",
-                    scale: "days",
-                    maxScale: "months",
-                    minScale: "hours",
-                    itemsPerPage: 50,
-                    monthDisplay: 'month',
-                    monthNames: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    dateFormat: 'dd/MM/yyyy',
-                    timeFormat: 'HH:mm',
-                    useShowDay: function(date) {
-                        var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-                        return date.getDate() <= lastDay;
-                    },
-                    onItemClick: function(clickedProjectId) {
-                        console.log("Đã nhấn vào dự án ID:", clickedProjectId);
-                        loadGrantChart(clickedProjectId);
-                    },
-                    onRender: function() {
-                        // Ẩn loading sau khi render xong
+                $.ajax({
+                    url: sourceUrl,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
                         $('#ganttLoading').hide();
                         $('#filterBtn').prop('disabled', false);
+                        
+                        var googleData = mapToGoogleGanttData(data);
+                        drawGoogleGantt('ganttChart', googleData, function(clickedProjectId) {
+                            console.log("Đã nhấn vào dự án ID:", clickedProjectId);
+                            loadGrantChart(clickedProjectId);
+                        });
                         
                         // Hiển thị thông tin lọc
                         var filterText = '';
@@ -1821,6 +2156,11 @@ if ($res_all_filtered) {
                         $('html, body').animate({
                             scrollTop: $('#ganttChart').offset().top - 50
                         }, 500);
+                    },
+                    error: function(err) {
+                        $('#ganttLoading').hide();
+                        $('#filterBtn').prop('disabled', false);
+                        console.error('Lỗi tải dữ liệu biểu đồ:', err);
                     }
                 });
             }
@@ -2122,74 +2462,39 @@ if ($res_all_filtered) {
                 $('#ganttChart2').empty();
 
                 // Khởi tạo biểu đồ Gantt
-                var yearVal = $('#yearFilter').val();
+                var yearVal = $('#filterYear').val();
                 var ganttSource = 'lichCVCN_GRANT2.php?id=' + encodeURIComponent(projectId);
                 if (yearVal) {
                     ganttSource += '&year=' + encodeURIComponent(yearVal);
                 }
-                $("#ganttChart2").gantt({
-                    source: ganttSource,
-                    navigate: "scroll",
-                    scale: "days",
-                    maxScale: "months",
-                    minScale: "hours",
-                    itemsPerPage: 50,
-                    monthDisplay: 'month',
-                    monthNames: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    dateFormat: 'dd/MM/yyyy',
-                    timeFormat: 'HH:mm',
-                    scrollToToday: true,
-                    onItemClick: function(clickedItemId, e) {
-                        try {
-                            console.log('Đã click vào công việc trong Gantt chính, ID ban đầu:', clickedItemId, 'Sự kiện:', e);
-                            
-                            // Nếu không có ID, thử lấy từ phần tử được click (nếu có event)
-                            if (!clickedItemId && e && e.target) {
-                                var $target = $(e.target);
-                                var $row = $target.closest('tr');
-                                
-                                // Thử lấy ID từ data-id nếu có
-                                clickedItemId = $row.find('.gantt-label').data('id');
-                                console.log('Lấy ID từ data-id:', clickedItemId);
+                $.ajax({
+                    url: ganttSource,
+                    method: 'GET',
+                    dataType: 'json',
+                    success: function(data) {
+                        var googleData = mapToGoogleGanttData(data);
+                        drawGoogleGantt('ganttChart2', googleData, function(clickedItemId) {
+                            try {
+                                console.log('Đã click vào công việc trong Gantt chính, ID:', clickedItemId);
                                 if (!clickedItemId) return;
-                            } else if (!clickedItemId) {
-                                console.log('Không có ID từ sự kiện');
-                                return;
+                                
+                                // Chuyển đổi ID thành chuỗi để kiểm tra
+                                var idStr = String(clickedItemId);
+                                console.log('Chuỗi ID sau khi chuyển đổi:', idStr);
+                                
+                                // Kiểm tra xem có phải là ID công việc không
+                                if (idStr.startsWith('CV') || idStr.startsWith('cv')) {
+                                    console.log('Đây là công việc, gọi loadTaskDetail với ID:', clickedItemId);
+                                    loadTaskDetail(clickedItemId);
+                                } else if (/^\d+$/.test(clickedItemId)) {
+                                    console.log('Đây là dự án, gọi loadGrantChart với ID:', clickedItemId);
+                                    loadGrantChart(clickedItemId);
+                                }
+                            } catch (error) {
+                                console.error('Lỗi khi xử lý sự kiện click:', error);
                             }
-                            
-                            // Chuyển đổi ID thành chuỗi để kiểm tra
-                            var idStr = String(clickedItemId);
-                            console.log('Chuỗi ID sau khi chuyển đổi:', idStr);
-                            
-                            // Kiểm tra xem có phải là ID công việc không
-                            if (idStr.startsWith('CV') || idStr.startsWith('cv')) {
-                                // Nếu là công việc (bắt đầu bằng 'CV' hoặc 'cv')
-                                console.log('Đây là công việc, gọi loadTaskDetail với ID:', clickedItemId);
-                                loadTaskDetail(clickedItemId);
-                                return false; // Ngăn chặn mọi xử lý tiếp theo
-                            } 
-                            
-                            // Kiểm tra xem có phải là ID dự án không (chỉ chứa số)
-                            if (/^\d+$/.test(clickedItemId)) {
-                                console.log('Đây là dự án, gọi loadGrantChart với ID:', clickedItemId);
-                                loadGrantChart(clickedItemId);
-                                return false; // Ngăn chặn mọi xử lý tiếp theo
-                            }
-                            
-                            console.log('Không xác định được loại ID:', clickedItemId);
-                        } catch (error) {
-                            console.error('Lỗi khi xử lý sự kiện click:', error);
-                        }
-                    },
-                    useShowDay: function(date) {
-                        // Chỉ hiển thị ngày từ 1 đến ngày cuối cùng của tháng
-                        var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-                        return date.getDate() <= lastDay;
-                    },
-                    useCookie: true,
-                    showControls: false,
-                    useShowWeek: false,
-                    onRender: function() {
+                        });
+                        
                         if (window.console && typeof console.log === "function") {
                             console.log("Biểu đồ chi tiết đã được tải xong");
                         }
@@ -2199,6 +2504,9 @@ if ($res_all_filtered) {
                             $(this).remove();
                         });
                     },
+                    error: function(err) {
+                        console.error('Lỗi khi tải chi tiết dự án:', err);
+                    }
                 });
             }
         
@@ -2327,8 +2635,8 @@ window.showModal = function(type = 1) {
             console.log('Initializing charts...');
             try {
                 // Load biểu đồ trạng thái và giải ngân ngay lập tức
-                var yearVal = $('#yearFilter').val() || new Date().getFullYear();
-                $('#yearFilter').val(yearVal);
+                var yearVal = $('#filterYear').val() || new Date().getFullYear();
+                $('#filterYear').val(yearVal);
                 $('#input-year').val(yearVal);
 
                 // Đảm bảo các giá trị được set đúng
@@ -2717,7 +3025,7 @@ window.showModal = function(type = 1) {
 
         function reloadDisbursementChart() {
             var projectId = $('#projectFilter2').val();
-            var yearVal = $('#yearFilter').val();
+            var yearVal = $('#filterYear').val();
             
             // Nếu không có dự án nào được chọn, hiển thị thông báo "Chưa có dữ liệu"
             if (!projectId) {
@@ -2900,7 +3208,7 @@ window.showModal = function(type = 1) {
 
         function reloadWorkloadChart() {
             var projectId = $('#projectFilter2').val();
-            var yearVal = $('#yearFilter').val();
+            var yearVal = $('#filterYear').val();
             
             if (!projectId) {
                 drawWorkloadChart([], [], []);
@@ -2955,7 +3263,7 @@ window.showModal = function(type = 1) {
             reloadDisbursementChart();
             reloadWorkloadChart(); // Luôn reload để clear biểu đồ cũ
         });
-        $('#yearFilter').on('change', function() { 
+        $('#filterYear').on('change', function() { 
             // Đồng bộ với input-year
             $('#input-year').val($(this).val());
             // Cập nhật biến year trong scope progress bar
@@ -3052,18 +3360,13 @@ window.showModal = function(type = 1) {
             }
 
 
-            var yearVal = $('#yearFilter').val();
+            var yearVal = $('#filterYear').val();
             var phong = $('#phongbanFilter').val();
             var projectId = $('#projectFilter2').val();
             updateDashboardCounts(yearVal, projectId, phong);
             
             if (!$('#phongbanFilter').length) {
-                console.log("phòng:", $('#phongbanFilter').length);
-                // Ẩn tất cả các option trong dropdown dự án
-                $('#projectFilter2 option').hide();
-                $('#projectFilter2 option[value=""]').show();
-                // Hiển thị các option thuộc phòng ban đã chọn
-                $('#projectFilter2 option[data-nam="' + year + '"]').show();
+                // Xóa bỏ logic show/hide thủ công vì đã có filterProjectDropdown() xử lý tập trung
             }
         });
         
@@ -3089,7 +3392,7 @@ window.showModal = function(type = 1) {
                 $('#phongbanFilter').val('').trigger('change');
             }
             $('#projectFilter2').val('');
-            $('#yearFilter').val(currentYear);
+            $('#filterYear').val(currentYear);
             $('#input-year').val(currentYear);
             // Cập nhật biến year trong scope progress bar
             if (typeof year !== 'undefined') {
@@ -3123,7 +3426,7 @@ window.showModal = function(type = 1) {
         // Hàm reload biểu đồ trạng thái 2 - định nghĩa ở scope global
         window.reloadStatusChart2 = function() {
             var projectId = $('#projectFilter2').val();
-            var yearVal = $('#yearFilter').val();
+            var yearVal = $('#filterYear').val();
             var phong = $('#phongbanFilter').val();
             
             // Hiển thị loading
@@ -3260,7 +3563,7 @@ window.showModal = function(type = 1) {
         // Sự kiện khi thay đổi dự án trong bộ lọc
 $('#projectFilter, #projectFilter2').on('change', function() {
     var projectId = $(this).val();
-    var yearFilter = $('#yearFilter').val();
+    var yearFilter = $('#filterYear').val();
     var phong = $('#phongbanFilter').val();
 
     //console.log('Đã chọn phòng:', phong);
@@ -3411,7 +3714,7 @@ $(document).ready(function() {
     });
     
     // Thêm sự kiện khi thay đổi năm
-    $('#yearFilter').on('change', function() {
+    $('#filterYear').on('change', function() {
         var projectId = $('#projectFilter2').val();
         if (projectId) {
             reloadDisbursementChart();
@@ -3438,7 +3741,7 @@ $(document).ready(function() {
       let params = `mode=${mode}`;
       if (mode !== 'year') params += `&year=${year}`;
       // Thêm bộ lọc năm từ filter
-      var yearFilter = $('#yearFilter').val();
+      var yearFilter = $('#filterYear').val();
       if (yearFilter) {
         params += `&filter_year=${yearFilter}`;
       }
@@ -3551,11 +3854,11 @@ $(document).ready(function() {
       inputYear.onchange = function() {
         year = this.value;
         // Đồng bộ với yearFilter
-        $('#yearFilter').val(year);
+        $('#filterYear').val(year);
         fetchAndDrawProgressBar();
       };
       // Đồng bộ input-year với yearFilter khi tải trang
-      inputYear.value = $('#yearFilter').val();
+      inputYear.value = $('#filterYear').val();
     }
 
     // Khởi tạo mặc định chỉ khi các element cần thiết tồn tại
@@ -3583,8 +3886,8 @@ $(document).ready(function() {
             $('#ganttChart').show();
             // Hiện lại hai nút khi bỏ lọc dự án
             $('#btnGanttMyWork, #btnGanttProject').show();
-            if (typeof window.reloadMainGanttChart === 'function') {
-                window.reloadMainGanttChart();
+            if (typeof window.reloadGanttChart === 'function') {
+                window.reloadGanttChart();
             }
 
         });
@@ -3658,116 +3961,9 @@ $(document).ready(function() {
     });
     </script>
 
-    <script type="text/javascript">
-        // Khai báo biến toàn cục
-        var ganttMode = 'mywork'; // 'project' hoặc 'mywork' (mặc định công việc riêng)
-        
-        // Hàm khởi tạo Gantt chart
-        function initGanttChart() {
-            console.log('Đang khởi tạo Gantt chart...');
-            // Kiểm tra xem phần tử ganttChart có tồn tại không
-            var $ganttChart = $('#ganttChart');
-            if ($ganttChart.length === 0) {
-                console.error('Không tìm thấy phần tử #ganttChart');
-                return false;
-            }
-            
-            // Kiểm tra xem thư viện Gantt đã được tải chưa
-            if (typeof $.fn.gantt === 'undefined') {
-                console.error('Thư viện Gantt chưa được tải');
-                return false;
-            }
-            
-            // Xóa nội dung cũ
-            $ganttChart.empty();
-            
-            // Tạo URL nguồn dữ liệu
-            var sourceUrl = (ganttMode === 'project') ? 'lichCVCN_GRANT.php' : 'lichCVCN_GRANT_mywork.php';
-            var phongbanId = $('#phongbanFilter').val();
-            var params = [];
-            if (phongbanId) params.push('phongban=' + encodeURIComponent(phongbanId));
-            if (params.length > 0) {
-                    sourceUrl += '?' + params.join('&');
-                }
-
-            try {
-                // Khởi tạo Gantt chart
-                $ganttChart.gantt({
-                    source: sourceUrl,
-                    navigate: "scroll",
-                    scale: "days",
-                    maxScale: "months",
-                    minScale: "hours",
-                    itemsPerPage: 50,
-                    monthDisplay: 'month',
-                    monthNames: ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'],
-                    dateFormat: 'dd/MM/yyyy',
-                    timeFormat: 'HH:mm',
-                    useShowDay: function(date) {
-                        var lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-                        return date.getDate() <= lastDay;
-                    },
-                    onItemClick: function(clickedProjectId) {
-                        if (typeof loadGrantChart === 'function') {
-                            loadGrantChart(clickedProjectId);
-                        }
-                    },
-                    onError: function(error) {
-                        console.error('Lỗi khi tải Gantt chart:', error);
-                    }
-                });
-                
-                console.log('Đã khởi tạo Gantt chart thành công');
-                return true;
-            } catch (e) {
-                console.error('Lỗi khi khởi tạo Gantt chart:', e);
-                return false;
-            }
-        }
-        
-        // Hàm reload Gantt chart
-        function reloadMainGanttChart() {
-            console.log('Đang tải lại Gantt chart...');
-            return initGanttChart();
-        }
-        
-        // Sự kiện click nút chuyển đổi
-        $(document).on('click', '#btnGanttProject', function() {
-            ganttMode = 'project';
-            $(this).removeClass('btn-outline-primary').addClass('btn-primary');
-            $('#btnGanttMyWork').removeClass('btn-primary').addClass('btn-outline-primary');
-            reloadMainGanttChart();
-        });
-        
-        $(document).on('click', '#btnGanttMyWork', function() {
-            ganttMode = 'mywork';
-            $(this).removeClass('btn-outline-primary').addClass('btn-primary');
-            $('#btnGanttProject').removeClass('btn-primary').addClass('btn-outline-primary');
-            reloadMainGanttChart();
-        });
-    </script>
 
     <script>
-    // Hàm kiểm tra và khởi tạo Gantt chart
-    function initGantt() {
-        // Kiểm tra xem phần tử ganttChart có tồn tại không
-        if ($('#ganttChart').length === 0) {
-            console.log('Chưa tìm thấy phần tử ganttChart, sẽ thử lại sau...');
-            setTimeout(initGantt, 500);
-            return;
-        }
-        
-        // Đặt chế độ mặc định
-        ganttMode = 'mywork';
-        
-        // Khởi tạo Gantt chart
-        if (!initGanttChart()) {
-            // Nếu khởi tạo thất bại, thử lại sau 1 giây
-            console.log('Khởi tạo Gantt chart thất bại, sẽ thử lại sau 1 giây...');
-            setTimeout(initGantt, 1000);
-        }
-    }
-    
+
     // Bắt đầu khởi tạo khi DOM đã sẵn sàng
     $(document).ready(function() {
         console.log('DOM đã sẵn sàng, đang khởi tạo Gantt chart...');

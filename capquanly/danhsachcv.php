@@ -12,8 +12,8 @@ if (!isset($_SESSION['username'])) {
 include_once(__DIR__ . '/ajax_work/query_helper.php');
 
 $keywords = $_GET['keywords'] ?? '';
-$from_date = $_GET['from_date'] ?? '';
-$to_date = $_GET['to_date'] ?? '';
+$from_date = isset($_GET['from_date']) ? $_GET['from_date'] : date('Y-m-01');
+$to_date = isset($_GET['to_date']) ? $_GET['to_date'] : date('Y-m-t');
 $project_id = $_GET['project_id'] ?? '';
 
 // Tham số phân trang
@@ -22,7 +22,7 @@ $perPageInput = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
 $perPage = in_array($perPageInput, [20, 50, 100]) ? $perPageInput : 20;
 
 // Số card Kanban load lần đầu (lazy load)
-$kanbanInitLimit = 30;
+$kanbanInitLimit = 10;
 
 // querySql() đã được chuyển sang ajax_work/query_helper.php
 // Sử dụng getTasksByStatus(), getTasksForTable(), getTasksForKanban()
@@ -246,6 +246,10 @@ $tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_i
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.css"/>
     <link href="https://cdn.jsdelivr.net/gh/hung1001/font-awesome-pro@4cac1a6/css/all.css" rel="stylesheet"
           type="text/css"/>
+    
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    
     <style>
         #myRange {
             pointer-events: none;
@@ -280,11 +284,11 @@ $tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_i
                         <input type="text" name="keywords" class="cv-filter-input" placeholder="🔍 Tìm kiếm..." value="<?php echo htmlspecialchars($keywords); ?>">
                         <div class="cv-filter-date-group">
                             <span class="cv-filter-label">Từ ngày</span>
-                            <input type="date" id="from_date" name="from_date" class="cv-filter-input" value="<?php echo htmlspecialchars($from_date); ?>">
+                            <input type="text" id="from_date" name="from_date" class="cv-filter-input" placeholder="Từ ngày..." value="<?php echo htmlspecialchars($from_date); ?>">
                         </div>
                         <div class="cv-filter-date-group">
                             <span class="cv-filter-label">Đến ngày</span>
-                            <input type="date" id="to_date" name="to_date" class="cv-filter-input" value="<?php echo htmlspecialchars($to_date); ?>">
+                            <input type="text" id="to_date" name="to_date" class="cv-filter-input" placeholder="Đến ngày..." value="<?php echo htmlspecialchars($to_date); ?>">
                         </div>
                         <button class="cv-btn cv-btn-danger" type="submit"><i class="fal fa-search"></i> Tìm</button>
                         <button type="button" id="resetSearch" class="cv-btn cv-btn-outline"><i class="fal fa-undo"></i> Đặt lại</button>
@@ -328,16 +332,7 @@ $tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_i
             };
             // Reset form
             document.getElementById('resetSearch').onclick = function() {
-                var form = document.getElementById('searchForm');
-                var projectSelect = document.getElementById('project_id');
-                form.keywords.value = '';
-                form.from_date.value = '';
-                form.to_date.value = '';
-                projectSelect.value = '';
-                if (typeof $.fn.select2 !== 'undefined') {
-                    $(projectSelect).trigger('change');
-                }
-                form.submit();
+                window.location.href = window.location.pathname;
             };
         </script>
     </div>
@@ -383,7 +378,6 @@ $tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_i
 </div>
 
 <link rel="stylesheet" href="./css/select2/select2.min.css">
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js"></script>
 <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
@@ -391,6 +385,20 @@ $tableData = getTasksForTable($conn, $keywords, $from_date, $to_date, $project_i
 <script src="./css/select2/select2.min.js"></script>
 <script src="css/app2.js"></script>
 <script src="./css/ckeditor/ckeditor.js"></script>
+
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
+<script>
+$(document).ready(function() {
+    flatpickr("#from_date, #to_date", {
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "d/m/Y",
+        locale: "vn"
+    });
+});
+</script>
 
 <script type="text/javascript">
     // Xử lý sự kiện click nút Thêm công việc riêng
@@ -1254,9 +1262,15 @@ $(document).ready(function() {
             if ($('#project_id').hasClass('select2-hidden-accessible')) {
                 $('#project_id').select2('destroy');
             }
-            $('#project_id').select2({
-                dropdownParent: $('#filterPanel')
-            });
+            var select2Options = {
+                placeholder: 'Chọn dự án',
+                allowClear: true,
+                width: 'resolve'
+            };
+            if ($('#filterPanel').length) {
+                select2Options.dropdownParent = $('#filterPanel');
+            }
+            $('#project_id').select2(select2Options);
         }
     }
     // Khởi tạo lần đầu cho desktop

@@ -2,46 +2,59 @@
 include('../../config.php');
 
 try {
-    $code = $_GET['code'];
-    $id = $_GET['id'];
+    $code   = trim($_GET['code'] ?? '');
+    $id     = trim($_GET['id'] ?? '');
+    $status = intval($_GET['status'] ?? 1);
 
-    //1 đang tiến hành, 2 hoàn thành
-    $status = $_GET['status'] ?? 1;
+    if (empty($id)) {
+        echo json_encode(['status' => false, 'message' => 'Mã công việc không hợp lệ']);
+        return;
+    }
+
+    // Whitelist trạng thái hợp lệ
+    $allowedStatus = [1, 2, 3, 4, 5, 6];
+    if (!in_array($status, $allowedStatus)) {
+        echo json_encode(['status' => false, 'message' => 'Trạng thái không hợp lệ']);
+        return;
+    }
 
     if ($status == 2) {
-        $sql = "UPDATE danhsachcongviec SET DSCV_TRANGTHAI = 2, DSCV_NGAYHOANTHANH = NOW() WHERE DSCV_MA = '$id' ";
+        $sql = "UPDATE danhsachcongviec SET DSCV_TRANGTHAI = 2, DSCV_NGAYHOANTHANH = NOW() WHERE DSCV_MA = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('s', $id);
     } else {
-        $sql = "UPDATE danhsachcongviec SET DSCV_TRANGTHAI = $status WHERE DSCV_MA = '$id' ";
+        $sql = "UPDATE danhsachcongviec SET DSCV_TRANGTHAI = ? WHERE DSCV_MA = ?";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param('is', $status, $id);
     }
-    // Ghi log SQL và lỗi (nếu có) vào error_log
-    error_log(date('Y-m-d H:i:s') . " SQL: " . $sql);
-    $result = mysqli_query($conn, $sql);
-    $error = mysqli_error($conn);
+
+    if (!$stmt) {
+        throw new Exception('Lỗi chuẩn bị câu lệnh: ' . $conn->error);
+    }
+
+    $result = $stmt->execute();
+    $error  = $stmt->error;
+    $stmt->close();
     $conn->close();
+
     if (!$result) {
         echo json_encode([
-            'status' => false,
-            'message' => 'Lỗi SQL: ' . $error,
-            'sql' => $sql
+            'status'  => false,
+            'message' => 'Lỗi SQL: ' . $error
         ]);
         return;
     }
-    // Trả về cả SQL và error (nếu có) để frontend có thể log ra console
+
     echo json_encode([
-        'status' => true,
-        'data' => $code,
-        'message' => 'Cập nhật thành công',
-        'sql' => $sql,
-        'error' => $error
+        'status'  => true,
+        'data'    => $code,
+        'message' => 'Cập nhật thành công'
     ]);
-    return;
 
 } catch (\Exception $e) {
     echo json_encode([
-        'status' => false,
+        'status'  => false,
         'message' => $e->getMessage()
     ]);
-    return;
 }
-
 ?>

@@ -37,8 +37,7 @@ if (!function_exists('renderProjectKanbanCard')) {
         // Hidden hover actions
         $html .= '<div class="cv-card-actions">';
         // View / Edit / Mở thẻ
-        $html .= '<button class="cv-card-action-btn viewDetail" data-id="'.$id.'" title="Mở thẻ"><i class="fal fa-id-card"></i></button>';
-        $html .= '<button class="cv-card-action-btn viewDetail2" data-id="'.$id.'" title="Chỉnh sửa"><i class="fal fa-pen"></i></button>';
+        $html .= '<button class="cv-card-action-btn viewDetail" data-id="'.$id.'" title="Mở thẻ & Chỉnh sửa"><i class="fal fa-id-card"></i></button>';
         $html .= '<button class="cv-card-action-btn cv-action-danger removeProject" data-id="'.$id.'" title="Xóa thẻ"><i class="fal fa-trash-alt"></i></button>';
         $html .= '</div>';
         
@@ -174,8 +173,7 @@ $kanbanInitLimit = $kanbanInitLimit ?? 30;
                             <td><?php echo $nguoiPtrach; ?></td>
                             <td>
                                 <div class="cv-table-actions">
-                                    <button class="cv-table-action-btn viewDetail" data-id="<?php echo $p['DA_MA']; ?>" title="Xem chi tiết"><i class="fal fa-eye"></i></button>
-                                    <button class="cv-table-action-btn viewDetail2" data-id="<?php echo $p['DA_MA']; ?>" title="Chỉnh sửa"><i class="fal fa-pen"></i></button>
+                                    <button class="cv-table-action-btn viewDetail" data-id="<?php echo $p['DA_MA']; ?>" title="Xem chi tiết & Chỉnh sửa"><i class="fal fa-eye"></i></button>
                                     <button class="cv-table-action-btn cv-action-danger removeProject" data-id="<?php echo $p['DA_MA']; ?>" title="Xóa"><i class="fal fa-trash-alt"></i></button>
                                 </div>
                             </td>

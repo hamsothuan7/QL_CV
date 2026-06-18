@@ -2,42 +2,47 @@
 include('../../config.php');
 
 try {
-    $code = $_POST['code'];
-    $member = $_POST['member_id'] ?? NULL;
-    $room = $_POST['room_id'];
-    $ph_id = $_POST['ph_id'];
+    $code   = trim($_POST['code'] ?? '');
+    $member = trim($_POST['member_id'] ?? '');
+    $room   = trim($_POST['room_id'] ?? '');
+    $ph_id  = trim($_POST['ph_id'] ?? '');
 
-    $sql="";
-    if ($ph_id == '') {
-        $sql = "UPDATE danhsachcongviec SET TV_MA = '$member', PB_MA = '$room', PH_MA = NULL WHERE DSCV_MA = '$code' ";
-    }else{
-        $sql = "UPDATE danhsachcongviec SET TV_MA = '$member', PB_MA = '$room', PH_MA = '$ph_id' WHERE DSCV_MA = '$code' ";
+    if (empty($code)) {
+        echo json_encode(['status' => false, 'message' => 'Mã công việc không hợp lệ']);
+        return;
     }
-    //$sql = "UPDATE danhsachcongviec SET TV_MA = '$member', PB_MA = '$room', PH_MA = '$ph_id' WHERE DSCV_MA = '$code' ";
-    $result = mysqli_query($conn, $sql);
+
+    // ph_id rỗng → NULL
+    $ph_val = (!empty($ph_id)) ? $ph_id : null;
+
+    $sql = "UPDATE danhsachcongviec SET TV_MA = ?, PB_MA = ?, PH_MA = ? WHERE DSCV_MA = ?";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new Exception('Lỗi chuẩn bị câu lệnh: ' . $conn->error);
+    }
+
+    $stmt->bind_param('ssss', $member, $room, $ph_val, $code);
+    $result = $stmt->execute();
+    $stmt->close();
     $conn->close();
-    if($result){
+
+    if ($result) {
         echo json_encode([
-            'status' => true,
-            'data' => $code,
+            'status'  => true,
+            'data'    => $code,
             'message' => 'Cập nhật thành viên thành công'
         ]);
-        return;
-    }else{
+    } else {
         echo json_encode([
-            'status' => false,
+            'status'  => false,
             'message' => 'Cập nhật thành viên thất bại'
         ]);
-        return;
     }
-
 
 } catch (\Exception $e) {
     echo json_encode([
-        'status' => false,
+        'status'  => false,
         'message' => $e->getMessage()
     ]);
-    return;
 }
-
 ?>

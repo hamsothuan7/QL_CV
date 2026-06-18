@@ -6,41 +6,20 @@ function time_elapsed_string($datetime, $full = false)
     $ago = new DateTime($datetime);
     $diff = $now->diff($ago);
 
-    // Sửa lỗi: DateInterval không có thuộc tính w trong PHP < 8.2
-    $weeks = floor($diff->d / 7);
-    $diff->d -= $weeks * 7;
-    // Thêm vào mảng kết quả nếu cần hiển thị tuần
-    if ($weeks > 0) {
-        $string['w'] = $weeks . ' tuần';
-    }
-
     $string = [];
-    
-    // Tính toán các đơn vị thời gian
+
+    // Tính tuần từ ngày trong kết quả diff
     $weeks = floor($diff->d / 7);
-    $days = $diff->d % 7;
-    
-    // Thêm tuần nếu có
-    if ($weeks > 0) {
-        $string[] = $weeks . ' tuần' . ($weeks > 1 ? '' : '');
-    }
-    
-    // Thêm các đơn vị thời gian khác
-    $units = [
-        'y' => ['năm', $diff->y],
-        'm' => ['tháng', $diff->m],
-        'd' => ['ngày', $diff->d],
-        'h' => ['giờ', $diff->h],
-        'i' => ['phút', $diff->i],
-        's' => ['giây', $diff->s],
-    ];
-    
-    foreach ($units as $unit) {
-        list($label, $value) = $unit;
-        if ($value > 0) {
-            $string[] = $value . ' ' . $label . ($value > 1 ? '' : '');
-        }
-    }
+    $days  = $diff->d % 7;
+
+    // Thêm các đơn vị thời gian
+    if ($diff->y > 0) $string[] = $diff->y . ' năm';
+    if ($diff->m > 0) $string[] = $diff->m . ' tháng';
+    if ($weeks > 0)   $string[] = $weeks . ' tuần';
+    if ($days > 0)    $string[] = $days . ' ngày';
+    if ($diff->h > 0) $string[] = $diff->h . ' giờ';
+    if ($diff->i > 0) $string[] = $diff->i . ' phút';
+    if ($diff->s > 0) $string[] = $diff->s . ' giây';
 
     if (!$full) $string = array_slice($string, 0, 1);
     return $string ? implode(', ', $string) . ' trước' : 'vừa xong';
@@ -173,11 +152,6 @@ function convertDate($date)
             </div>
             <div class="form-group">
                 <label>Dự án:</label>
-                <?php 
-                // Add debug logging
-                error_log('Projects data: ' . print_r($projects, true));
-                error_log('Current project: ' . print_r($project, true));
-                ?>
                 <select name="project_id" class="form-control select2">
                     <?php if (!empty($projects)): ?>
                         <?php
